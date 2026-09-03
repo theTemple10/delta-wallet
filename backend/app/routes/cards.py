@@ -31,10 +31,12 @@ async def issue_card(request: CardCreate, db: AsyncSession = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    wallet_id = user.smart_wallet_id or request.smart_wallet_id
+
     response = await bmoni_client.issue_card(user.bmoni_user_id, {
         "cardName": request.card_name, "cardColor": request.card_color,
         "currency": request.currency, "type": request.card_type,
-        "smartWalletId": request.smart_wallet_id, "nin": request.nin
+        "smartWalletId": wallet_id, "nin": request.nin
     })
 
     card = Card(user_id=user.id, bmoni_card_id=response.get("data", {}).get("card", {}).get("id"), currency=request.currency)

@@ -9,14 +9,14 @@ export default function SplitPage() {
   const { mode = 'ai', amount = 100, currency = 'USDB' } = location.state || {};
 
   const [channels, setChannels] = useState([]);
+  const [manualAmounts, setManualAmounts] = useState({});
   const [splits, setSplits] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [userId, setUserId] = useState(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const stored = localStorage.getItem('delta_user_id');
     if (stored) {
-      setUserId(stored);
       loadChannels(stored);
     }
   }, []);
@@ -30,13 +30,41 @@ export default function SplitPage() {
     }
   };
 
-  const handlePropose = async () => {
+  const handleAISplit = async () => {
     setLoading(true);
+    setError('');
     try {
-      const res = await proposeSplit(inflowEventId, mode);
+      const res = await proposeSplit(inflowEventId, 'ai');
       setSplits(res.data.splits);
     } catch (err) {
+      setError('AI split failed. Try again or use Manual mode.');
       console.error('Split proposal failed:', err);
+    }
+    setLoading(false);
+  };
+
+  const handleManualSplit = async () => {
+    const splitsPayload = channels
+      .filter((c) => manualAmounts[c.id] && parseFloat(manualAmounts[c.id]) > 0)
+      .map((c) => ({
+        channel_id: c.id,
+        amount: parseFloat(manualAmounts[c.id]),
+        one_line_reason: 'Manual split'
+      }));
+
+    if (splitsPayload.length === 0) {
+      setError('Enter an amount for at least one channel.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    try {
+      const res = await proposeSplit(inflowEventId, 'manual', splitsPayload);
+      setSplits(res.data.splits);
+    } catch (err) {
+      setError('Manual split failed. Please try again.');
+      console.error('Manual split failed:', err);
     }
     setLoading(false);
   };
@@ -49,7 +77,6 @@ export default function SplitPage() {
         inflow_event_id: inflowEventId,
         type: currency === 'USDB' ? 'SWAP' : 'TRANSFER',
         amount: split.amount,
-        to_user_id: channels.find(c => c.id === split.channel_id)?.type === 'transfer' ? localStorage.getItem('delta_recipient_id') : undefined,
         currency: 'CNGN',
         from_stablecoin: 'USDB',
         to_stablecoin: 'CNGN'
@@ -64,6 +91,7 @@ export default function SplitPage() {
         s.channel_id === split.channel_id ? { ...s, status: 'completed' } : s
       ));
     } catch (err) {
+      setError('Approval/sign failed. Please try again.');
       console.error('Proposal flow failed:', err);
     }
     setLoading(false);
@@ -79,10 +107,40 @@ export default function SplitPage() {
         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>{currency}</div>
       </div>
 
-      {splits.length === 0 ? (
-        <button className="btn btn-primary" style={{ width: '100%' }} onClick={handlePropose} disabled={loading}>
-          {loading ? <span className="spinner" /> : mode === 'ai' ? 'Generate AI Split' : 'Enter Manual Split'}
+      {error && <div className="error-banner">{error}</div>}
+
+      {splits.length === 0 && mode === 'ai' ? (
+        <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleAISplit} disabled={loading}>
+          {loading ? <span className="spinner" /> : 'Generate AI Split'}
         </button>
+      ) : splits.length === 0 && mode === 'manual' ? (
+        <>
+          <p className="stat-label" style={{ marginBottom: '16px' }}>
+            Enter an amount for each channel to send.
+          </p>
+          <div className="channels-grid">
+            {channels.map((ch) => (
+              <div key={ch.id} className={`glass-card channel-${ch.type}`}>
+                <div className="channel-header">
+                  <div className="channel-label">{ch.label}</div>
+                  <span className="stat-label">{ch.target_currency}</span>
+                </div>
+                <input
+                  className="input"
+                  type="number"
+                  placeholder="Amount"
+                  min="0"
+                  value={manualAmounts[ch.id] || ''}
+                  onChange={(e) => setManualAmounts((prev) => ({ ...prev, [ch.id]: e.target.value }))}
+                  style={{ marginTop: '12px', width: '100%' }}
+                />
+              </div>
+            ))}
+          </div>
+          <button className="btn btn-primary" style={{ width: '100%', marginTop: '16px' }} onClick={handleManualSplit} disabled={loading}>
+            {loading ? <span className="spinner" /> : 'Submit Manual Split'}
+          </button>
+        </>
       ) : (
         <>
           <div className="channels-grid">
