@@ -112,6 +112,7 @@ delta-wallet/
 │
 ├── delta-build-prompt.md          # Full product spec (read this first)
 ├── CONTRIBUTING.md                # This file
+├── DECISIONS.md                   # Why we did it this way (read before making changes)
 └── to_run.md                      # Quick-run instructions
 ```
 
@@ -198,19 +199,25 @@ Check `delta-build-prompt.md` section 10 (Build order) for priorities. Current s
 - [x] Backend skeleton + DB models + BMONI mock client
 - [x] Groq integration (split + digest)
 - [x] Frontend: inflow → split → approve/sign → digest
-- [x] Landing page
+- [x] Landing page (BMONI assets, animations, palette)
 - [x] Card issuance + limits
-- [ ] PWA polish (service worker, icons, install prompt)
-- [ ] Deploy (Render + Vercel + Supabase)
-- [ ] Real BMONI key integration
+- [x] Seed wallet bug fix (re-seed recovery, error feedback)
+- [x] BMONI design alignment (Poppins/Raleway, #AF01AF palette)
+- [ ] PWA icons (need 192x192 and 512x512 PNGs in `frontend/public/`)
+- [ ] Deploy config (Render backend + Vercel frontend)
+- [ ] Real BMONI key integration (waiting on API key)
+- [ ] Error toasts (replace console.error with user-visible feedback)
 
 **Good first issues for new contributors:**
-- PWA icons (create `pwa-192x192.png` and `pwa-512x512.png` in `frontend/public/`)
-- Improve error handling in frontend (show toast/alert on API failures)
-- Add loading skeletons to pages
+- Create PWA icons (`pwa-192x192.png` and `pwa-512x512.png` in `frontend/public/`)
 - Write the Vercel/Render deploy config
+- Add error toasts (show user-visible errors instead of console.error)
+- Add loading skeletons to pages
+- Read `DECISIONS.md` before making architectural or design changes
 
 ### Code conventions
+
+**Before making changes**, read `DECISIONS.md` to understand why things are set up the way they are.
 
 **Backend (Python/FastAPI):**
 - All routes go in `app/routes/`

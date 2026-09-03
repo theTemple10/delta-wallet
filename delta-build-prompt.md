@@ -166,11 +166,13 @@ Every mock response must match the real shapes above exactly — same field name
 
 ## 7. Design system
 
+- **BMONI-aligned palette** (updated 2026-09-03): `#AF01AF` magenta (primary), `#FDA9FF` pink (accent/transfer), `#7B2FBE` deep purple (gradient depth). See `DECISIONS.md` for why.
+- **Typography:** Poppins (headlines) + Raleway (body) — matches bmoni.com.
 - Glassmorphism: frosted/blurred translucent cards, layered elevation via blur radius not drop-shadow alone.
-- Material 3 dynamic color: derive an accent tint per channel type (e.g. blue-ish for USD savings, green for NGN spend, warm for family/transfer channels).
 - **The proposal state machine is the hero visual.** A channel card starts semi-transparent/"unconfirmed." On approve it firms up slightly. On sign, it fully solidifies with a completion state. This should feel like the literal reason for the glass metaphor — money going from ambiguous to deliberate.
 - Central "inflow" moment: an amount lands, then visually branches/splits into the channel cards (this is the core screen — spend real design effort here over anything else).
 - Toggle for **Guided (AI, via Groq)** vs **Manual** mode should be visible and obvious, not buried in settings — it's a feature, not a preference.
+- **Landing page:** Public marketing screen at `/`, separate from app shell at `/app/*`. Uses BMONI-hosted asset images, CSS-only animations (fadeInUp, float, pulseGlow, shimmer). No JS animation dependencies.
 
 ---
 
