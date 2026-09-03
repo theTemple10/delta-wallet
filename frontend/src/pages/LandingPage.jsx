@@ -37,7 +37,7 @@ export default function LandingPage() {
 
       <section className="landing-hero">
         <div className="landing-hero-glow" />
-        <div className="landing-hero-content slide-up">
+        <div className="landing-hero-content">
           <h1 className="landing-headline">
             Money lands.<br />
             <span className="landing-headline-accent">You decide where it goes.</span>
@@ -55,6 +55,9 @@ export default function LandingPage() {
               </button>
             )}
           </div>
+          <div className="landing-hero-image">
+            <img src="https://bmoni.com/wp-content/uploads/2025/10/image-69.png" alt="Delta dashboard preview" />
+          </div>
         </div>
       </section>
 
@@ -65,13 +68,16 @@ export default function LandingPage() {
 
           <div className="features-grid">
             <div className="feature-card glass-card">
-              <div className="feature-icon" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+              <div className="feature-icon" style={{ background: 'linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-tertiary) 100%)' }}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                 </svg>
               </div>
               <h3 className="feature-title">Multi-Currency Wallets</h3>
               <p className="feature-desc">Hold USD, NGN, and more. Fund with bank transfers or stablecoins. Your money, your currencies.</p>
+              <div className="feature-image">
+                <img src="https://bmoni.com/wp-content/uploads/2025/09/Frame-1000003540.png" alt="Multi-currency wallets" />
+              </div>
             </div>
 
             <div className="feature-card glass-card">
@@ -82,6 +88,9 @@ export default function LandingPage() {
               </div>
               <h3 className="feature-title">AI-Powered Splits</h3>
               <p className="feature-desc">When payment lands, Delta proposes a split across spend, save, and obligations. Guided by AI, executed by you.</p>
+              <div className="feature-image">
+                <img src="https://bmoni.com/wp-content/uploads/2025/09/globr.png" alt="AI-powered splits" />
+              </div>
             </div>
 
             <div className="feature-card glass-card">
@@ -92,6 +101,9 @@ export default function LandingPage() {
               </div>
               <h3 className="feature-title">Virtual Cards</h3>
               <p className="feature-desc">Issue virtual cards with enforced spend limits. Not just visual limits -- real guardrails on your money.</p>
+              <div className="feature-image">
+                <img src="https://bmoni.com/wp-content/uploads/2025/09/Frame-1000003539.png" alt="Virtual cards" />
+              </div>
             </div>
           </div>
         </div>
@@ -107,25 +119,34 @@ export default function LandingPage() {
               <div className="step-number">1</div>
               <h3 className="step-title">Receive Payment</h3>
               <p className="step-desc">A payment lands in your BMONI smart wallet. USD, NGN, or any supported stablecoin.</p>
+              <div className="step-image">
+                <img src="https://bmoni.com/wp-content/uploads/2026/05/c1-1.png" alt="Receive payment" />
+              </div>
             </div>
 
             <div className="step-card">
               <div className="step-number">2</div>
               <h3 className="step-title">Delta Proposes a Split</h3>
               <p className="step-desc">AI analyzes your channels and proposes how to split the inflow. Or do it manually -- the AI is optional, the execution layer is not.</p>
+              <div className="step-image">
+                <img src="https://bmoni.com/wp-content/uploads/2026/05/c2-1.png" alt="Propose split" />
+              </div>
             </div>
 
             <div className="step-card">
               <div className="step-number">3</div>
               <h3 className="step-title">Review, Approve & Sign</h3>
               <p className="step-desc">Each channel becomes a real BMONI proposal. You review, approve, and sign each one. Nothing auto-executes.</p>
+              <div className="step-image">
+                <img src="https://bmoni.com/wp-content/uploads/2026/05/c3-1.png" alt="Approve and sign" />
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       <section className="landing-cta-section">
-        <div className="landing-section-inner" style={{ textAlign: 'center' }}>
+        <div className="landing-section-inner" style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
           <h2 className="landing-section-title">Ready to be deliberate?</h2>
           <p className="landing-section-sub" style={{ marginBottom: '32px' }}>
             Stop guessing where your money should go. Let Delta help you decide.
@@ -139,9 +160,12 @@ export default function LandingPage() {
       <footer className="landing-footer">
         <div className="landing-section-inner">
           <div className="landing-footer-inner">
+            <div className="landing-footer-logo">
+              <img src="https://bmoni.com/wp-content/uploads/2025/09/LOGO-White.png" alt="BMONI" />
+            </div>
             <div className="logo" style={{ fontSize: '18px' }}>Delta</div>
             <p className="landing-footer-text">
-              Built on <a href="https://bmoni.com" target="_blank" rel="noopener noreferrer" style={{ color: '#667eea', textDecoration: 'none' }}>BMONI</a>'s embedded wallet API. A hackathon project for BMONI x Learn2Earn.
+              Built on BMONI's embedded wallet API. A hackathon project for BMONI x Learn2Earn.
             </p>
           </div>
         </div>

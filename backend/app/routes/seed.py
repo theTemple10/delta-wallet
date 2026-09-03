@@ -33,7 +33,11 @@ DEMO_CHANNELS = [
 async def seed_demo_users(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).limit(1))
     if result.scalar_one_or_none():
-        return {"message": "Demo users already seeded"}
+        all_users = (await db.execute(select(User))).scalars().all()
+        return {
+            "message": "Demo users already seeded",
+            "users": [{"id": str(u.id), "name": f"{u.first_name} {u.last_name}"} for u in all_users]
+        }
 
     created_users = []
     for user_data in DEMO_USERS:

@@ -278,3 +278,37 @@ Track significant changes here so any agent picking up the project knows what's 
 | `/app/proposals` | ProposalsPage | |
 | `/app/digest/:id` | DigestPage | |
 | `/app/cards` | CardsPage | |
+
+### 2026-09-03 (evening) — Seed bug fix, BMONI palette refresh, animations, assets
+
+**Backend bug fix:**
+- `app/routes/seed.py`: When users already exist in DB, the endpoint now returns the existing user IDs in the `users` array (previously returned `{"message": "..."}` with no users, causing frontend to get permanently stuck on the seed screen)
+
+**Frontend — Seed screen fix:**
+- `pages/InflowPage.jsx`: Added `error` and `seedMessage` state variables. Seed button now shows success/error feedback. Handles "already seeded" case gracefully (user IDs returned from backend). Shows "Failed to connect to server" when backend is down.
+
+**Frontend — Design refresh (BMONI palette):**
+- Fonts: Replaced `Inter` with `Poppins` (headlines) + `Raleway` (body) — matches BMONI's typography
+- CSS variables updated:
+  - `--accent-primary: #AF01AF` (BMONI magenta)
+  - `--accent-secondary: #FDA9FF` (BMONI pink)
+  - `--accent-tertiary: #7B2FBE` (deep purple)
+  - `--accent-transfer` changed from `#f472b6` to `#FDA9FF` (BMONI pink)
+  - `--font-heading: 'Poppins'` / `--font-body: 'Raleway'`
+- Button gradient: `#667eea → #764ba2` replaced with `#AF01AF → #7B2FBE`
+- Input focus ring: Changed from blue (`#667eea`) to magenta (`#AF01AF`)
+- All headings and labels now use `var(--font-heading)` / `var(--font-body)`
+
+**Frontend — Animations (CSS-only, no new deps):**
+- `fadeInUp`: Hero headline, subtitle, CTA stagger in on load
+- `fadeInDown`: Nav bar slides down on load
+- `scaleIn`: Feature cards scale from 0.95 → 1 with stagger delays
+- `float`: Feature icons gently bob up/down
+- `pulseGlow`: Hero background orb breathes
+- `shimmer`: Step number circles have a gradient sweep effect
+
+**Frontend — BMONI assets:**
+- Hero: Added BMONI dashboard image (`image-69.png`)
+- Features: Added BMONI illustrations (wallets, globe, cards)
+- Steps: Added BMONI step illustrations (`c1-1.png`, `c2-1.png`, `c3-1.png`)
+- Footer: Added BMONI logo (`LOGO-White.png`)
