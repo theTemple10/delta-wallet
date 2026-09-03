@@ -4,10 +4,10 @@ from sqlalchemy import select
 from pydantic import BaseModel
 from typing import Optional
 from app.db.database import get_db
-from app.models.models import Proposal, Channel, User, InflowEvent, ProposalType, ProposalStatus
+from app.models.models import Proposal, Channel, User, ProposalType, ProposalStatus
 from app.services.bmoni_client import bmoni_client
-from app.config import get_settings
-from eth_account import Account
+from app.services.wallet import get_user_with_wallet
+from app.services import proposal_signer
 
 router = APIRouter()
 
@@ -30,18 +30,29 @@ async def create_proposal(channel_id: str, request: ProposalCreate, db: AsyncSes
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
 
-    user_result = await db.execute(select(User).where(User.id == channel.user_id))
-    user = user_result.scalar_one_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = await get_user_with_wallet(db, channel.user_id)
+    wallet_id = user.smart_wallet_id
+
+    to_bmoni_user_id = None
+    if request.type == ProposalType.TRANSFER:
+        if request.to_user_id:
+            recipient_result = await db.execute(select(User).where(User.id == request.to_user_id))
+            recipient = recipient_result.scalar_one_or_none()
+            to_bmoni_user_id = recipient.bmoni_user_id if recipient else None
+        elif channel.recipient_user_id:
+            recipient_result = await db.execute(select(User).where(User.id == channel.recipient_user_id))
+            recipient = recipient_result.scalar_one_or_none()
+            to_bmoni_user_id = recipient.bmoni_user_id if recipient else None
+        if not to_bmoni_user_id:
+            raise HTTPException(status_code=400, detail="Transfer requires a resolved BMONI recipient")
 
     proposal_data = {}
     if request.type == ProposalType.TRANSFER:
-        proposal_data = {"type": "TRANSFER", "toUserId": request.to_user_id, "amount": str(request.amount), "currency": request.currency, "description": "Split transfer"}
+        proposal_data = {"type": "TRANSFER", "toUserId": to_bmoni_user_id, "amount": str(request.amount), "currency": request.currency, "description": "Split transfer"}
     elif request.type == ProposalType.SWAP:
         proposal_data = {"type": "SWAP", "fromStablecoin": request.from_stablecoin, "toStablecoin": request.to_stablecoin, "fromAmount": str(request.amount), "slippageBps": 50}
 
-    bmoni_response = await bmoni_client.create_proposal(user.bmoni_user_id, "default-wallet", proposal_data)
+    bmoni_response = await bmoni_client.create_proposal(user.bmoni_user_id, wallet_id, proposal_data)
     bmoni_proposal_id = bmoni_response.get("data", {}).get("proposal", {}).get("id")
 
     proposal = Proposal(
@@ -61,64 +72,19 @@ async def create_proposal(channel_id: str, request: ProposalCreate, db: AsyncSes
 
 @router.post("/proposals/{proposal_id}/approve")
 async def approve_proposal(proposal_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Proposal).where(Proposal.id == proposal_id))
-    proposal = result.scalar_one_or_none()
-    if not proposal:
-        raise HTTPException(status_code=404, detail="Proposal not found")
-
-    channel_result = await db.execute(select(Channel).where(Channel.id == proposal.channel_id))
-    channel = channel_result.scalar_one_or_none()
-    user_result = await db.execute(select(User).where(User.id == channel.user_id))
-    user = user_result.scalar_one_or_none()
-
-    await bmoni_client.approve_proposal(user.bmoni_user_id, proposal.bmoni_proposal_id)
-    proposal.status = ProposalStatus.PENDING_SIGNATURES
-    await db.commit()
-
+    proposal = await proposal_signer.approve_proposal(db, proposal_id)
     return {"proposal_id": str(proposal.id), "status": proposal.status}
 
 
 @router.get("/proposals/{proposal_id}/sign-payload")
 async def get_sign_payload(proposal_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Proposal).where(Proposal.id == proposal_id))
-    proposal = result.scalar_one_or_none()
-    if not proposal:
-        raise HTTPException(status_code=404, detail="Proposal not found")
-
-    channel_result = await db.execute(select(Channel).where(Channel.id == proposal.channel_id))
-    channel = channel_result.scalar_one_or_none()
-    user_result = await db.execute(select(User).where(User.id == channel.user_id))
-    user = user_result.scalar_one_or_none()
-
-    response = await bmoni_client.get_sign_payload(user.bmoni_user_id, proposal.bmoni_proposal_id)
-    return {"hash_to_sign": response.get("data", {}).get("hashToSign")}
+    hash_to_sign = await proposal_signer.get_sign_payload(db, proposal_id)
+    return {"hash_to_sign": hash_to_sign}
 
 
 @router.post("/proposals/{proposal_id}/sign")
 async def sign_proposal(proposal_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Proposal).where(Proposal.id == proposal_id))
-    proposal = result.scalar_one_or_none()
-    if not proposal:
-        raise HTTPException(status_code=404, detail="Proposal not found")
-
-    channel_result = await db.execute(select(Channel).where(Channel.id == proposal.channel_id))
-    channel = channel_result.scalar_one_or_none()
-    user_result = await db.execute(select(User).where(User.id == channel.user_id))
-    user = user_result.scalar_one_or_none()
-
-    settings = get_settings()
-    account = Account.from_key(settings.DEMO_WALLET_OWNER_PRIVATE_KEY)
-
-    sign_response = await bmoni_client.get_sign_payload(user.bmoni_user_id, proposal.bmoni_proposal_id)
-    hash_to_sign = sign_response.get("data", {}).get("hashToSign")
-
-    signed = account.unsafe_sign_hash(hash_to_sign)
-    signature = signed.signature.hex()
-
-    await bmoni_client.sign_proposal(user.bmoni_user_id, proposal.bmoni_proposal_id, f"0x{signature}")
-    proposal.status = ProposalStatus.COMPLETED
-    await db.commit()
-
+    proposal = await proposal_signer.sign_proposal(db, proposal_id)
     return {"proposal_id": str(proposal.id), "status": proposal.status}
 
 
