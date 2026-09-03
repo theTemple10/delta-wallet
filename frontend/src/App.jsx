@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import LandingPage from './pages/LandingPage';
 import InflowPage from './pages/InflowPage';
 import SplitPage from './pages/SplitPage';
 import ProposalsPage from './pages/ProposalsPage';
@@ -9,7 +10,9 @@ import './App.css';
 
 function Navigation() {
   const location = useLocation();
-  const isHome = location.pathname === '/';
+  const isApp = location.pathname.startsWith('/app');
+
+  if (!isApp) return null;
 
   return (
     <nav className="glass" style={{
@@ -17,13 +20,13 @@ function Navigation() {
       maxWidth: '440px', margin: '0 auto', padding: '12px 20px',
       display: 'flex', justifyContent: 'space-around', zIndex: 100
     }}>
-      <Link to="/" style={{ color: isHome ? '#667eea' : 'var(--text-secondary)', textDecoration: 'none', fontSize: '13px', fontWeight: 500 }}>
+      <Link to="/app" style={{ color: location.pathname === '/app' ? '#667eea' : 'var(--text-secondary)', textDecoration: 'none', fontSize: '13px', fontWeight: 500 }}>
         Inflow
       </Link>
-      <Link to="/proposals" style={{ color: location.pathname === '/proposals' ? '#667eea' : 'var(--text-secondary)', textDecoration: 'none', fontSize: '13px', fontWeight: 500 }}>
+      <Link to="/app/proposals" style={{ color: location.pathname === '/app/proposals' ? '#667eea' : 'var(--text-secondary)', textDecoration: 'none', fontSize: '13px', fontWeight: 500 }}>
         Proposals
       </Link>
-      <Link to="/cards" style={{ color: location.pathname === '/cards' ? '#667eea' : 'var(--text-secondary)', textDecoration: 'none', fontSize: '13px', fontWeight: 500 }}>
+      <Link to="/app/cards" style={{ color: location.pathname === '/app/cards' ? '#667eea' : 'var(--text-secondary)', textDecoration: 'none', fontSize: '13px', fontWeight: 500 }}>
         Cards
       </Link>
     </nav>
@@ -51,6 +54,7 @@ function OfflineBanner() {
 function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstall, setShowInstall] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     const handler = (e) => {
@@ -70,7 +74,7 @@ function InstallPrompt() {
     setDeferredPrompt(null);
   };
 
-  if (!showInstall) return null;
+  if (!showInstall || !location.pathname.startsWith('/app')) return null;
   return (
     <div className="install-banner glass">
       <span style={{ fontSize: '14px', fontWeight: 500 }}>Install Delta</span>
@@ -84,21 +88,52 @@ function InstallPrompt() {
 function App() {
   return (
     <Router>
-      <div className="container">
-        <OfflineBanner />
-        <div className="header">
-          <div className="logo">Delta</div>
-        </div>
-        <Routes>
-          <Route path="/" element={<InflowPage />} />
-          <Route path="/split/:inflowEventId" element={<SplitPage />} />
-          <Route path="/proposals" element={<ProposalsPage />} />
-          <Route path="/digest/:inflowEventId" element={<DigestPage />} />
-          <Route path="/cards" element={<CardsPage />} />
-        </Routes>
-        <Navigation />
-        <InstallPrompt />
-      </div>
+      <OfflineBanner />
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/app" element={
+          <div className="container">
+            <div className="header">
+              <div className="logo">Delta</div>
+            </div>
+            <InflowPage />
+          </div>
+        } />
+        <Route path="/app/split/:inflowEventId" element={
+          <div className="container">
+            <div className="header">
+              <div className="logo">Delta</div>
+            </div>
+            <SplitPage />
+          </div>
+        } />
+        <Route path="/app/proposals" element={
+          <div className="container">
+            <div className="header">
+              <div className="logo">Delta</div>
+            </div>
+            <ProposalsPage />
+          </div>
+        } />
+        <Route path="/app/digest/:inflowEventId" element={
+          <div className="container">
+            <div className="header">
+              <div className="logo">Delta</div>
+            </div>
+            <DigestPage />
+          </div>
+        } />
+        <Route path="/app/cards" element={
+          <div className="container">
+            <div className="header">
+              <div className="logo">Delta</div>
+            </div>
+            <CardsPage />
+          </div>
+        } />
+      </Routes>
+      <Navigation />
+      <InstallPrompt />
     </Router>
   );
 }

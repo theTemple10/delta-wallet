@@ -59,7 +59,7 @@ export default function DigestPage() {
       <button
         className="btn btn-secondary"
         style={{ width: '100%', marginTop: '24px' }}
-        onClick={() => navigate('/')}
+        onClick={() => navigate('/app')}
       >
         Back to Inflow
       </button>

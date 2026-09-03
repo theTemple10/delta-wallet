@@ -124,7 +124,7 @@ export default function SplitPage() {
             <button
               className="btn btn-primary"
               style={{ width: '100%', marginTop: '24px' }}
-              onClick={() => navigate(`/digest/${inflowEventId}`)}
+              onClick={() => navigate(`/app/digest/${inflowEventId}`)}
             >
               View Digest
             </button>

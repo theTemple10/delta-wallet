@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 import httpx
 from typing import Optional, Dict, Any
@@ -123,7 +124,5 @@ class BMONIClient:
     async def activate_kyc(self, user_id: str, personal_info: Dict) -> Dict:
         return await self._request("POST", f"/v1/users/{user_id}/kyc/activate", {"personalInfo": personal_info})
 
-
-import asyncio
 
 bmoni_client = BMONIClient()

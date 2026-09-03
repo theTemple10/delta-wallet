@@ -230,3 +230,51 @@ Manual mode skips both calls entirely — this should be trivially demonstrable 
 6. **Flip `BMONI_MODE=live`** in Render's environment settings once tokens are confirmed, redeploy, and test one real SWAP and one real TRANSFER end to end.
 7. **Issue one real card** and set a real limit — this is your strongest live demo moment, don't skip testing it ahead of time.
 8. **Rehearse the disclosure line** for anything still seeded at showtime: what's real, what's pre-seeded, and why (the token-credit SLA is the honest, documented reason).
+
+---
+
+## 12. Changelog
+
+Track significant changes here so any agent picking up the project knows what's been done.
+
+### 2026-09-03 — Setup fixes, landing page, BMONI design alignment
+
+**Infrastructure fixes:**
+- Fixed `DATABASE_URL` typo in `.env` (had `ppostgresql://` double-p, wrong scheme) — corrected to `postgresql+asyncpg://`
+- Switched from direct Supabase host (`db.*.supabase.co`) to **Supavisor pooler** (`aws-0-eu-central-1.pooler.supabase.com:5432`) because direct host is IPv6-only and the dev machine lacks IPv6
+- Installed Python dependencies via `pip3 install --break-system-packages` (no venv available)
+- Installed `vite-plugin-pwa` as devDependency (was missing from `package.json`)
+- Ran `npm install` for frontend
+
+**Backend bug fix:**
+- `app/services/bmoni_client.py`: Moved `import asyncio` from line 127 (after class definition) to line 1 (top of file). Was using `asyncio.sleep()` in `_mock_request` before the import — worked only because methods aren't called at import time.
+
+**Frontend — Landing page:**
+- Created `src/pages/LandingPage.jsx` with BMONI-inspired design:
+  - Hero section with gradient headline + CTA
+  - Features grid (Multi-Currency, AI Splits, Virtual Cards)
+  - "3 simple steps" onboarding flow
+  - CTA section + footer with BMONI attribution
+- Updated `App.jsx` routing:
+  - `/` → LandingPage (public, no container/nav)
+  - `/app` → InflowPage (app shell with bottom nav)
+  - All app routes now under `/app/*`
+- Updated `InflowPage.jsx`: navigate to `/app/split/...`
+- Updated `SplitPage.jsx`: navigate to `/app/digest/...`
+- Updated `DigestPage.jsx`: navigate back to `/app`
+- Bottom navigation hidden on landing page, only shows on `/app/*` routes
+
+**Frontend — Design:**
+- Added landing page CSS to `index.css`: hero glow, features grid, steps grid, responsive breakpoints
+- Added `.btn-lg` utility class
+- Kept existing glassmorphism dark theme (already aligned with BMONI palette)
+
+**Current route table:**
+| Path | Component | Notes |
+|---|---|---|
+| `/` | LandingPage | Public landing, no nav |
+| `/app` | InflowPage | App shell, bottom nav |
+| `/app/split/:id` | SplitPage | |
+| `/app/proposals` | ProposalsPage | |
+| `/app/digest/:id` | DigestPage | |
+| `/app/cards` | CardsPage | |

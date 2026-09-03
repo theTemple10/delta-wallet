@@ -40,7 +40,7 @@ export default function InflowPage() {
     setLoading(true);
     try {
       const res = await simulateInflow(userId, parseFloat(amount), currency);
-      navigate(`/split/${res.data.inflow_event_id}`, { state: { mode, amount, currency } });
+      navigate(`/app/split/${res.data.inflow_event_id}`, { state: { mode, amount, currency } });
     } catch (err) {
       console.error('Inflow failed:', err);
     }
