@@ -77,8 +77,6 @@ def _waterfall_allocations(amount: Decimal, channels: List[Channel]) -> list:
         })
 
         remaining -= allocation
-        if remaining <= Decimal("0"):
-            break
 
     # If there's leftover after all channels funded, add it to discretionary
     if remaining > Decimal("0"):
