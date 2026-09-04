@@ -1,5 +1,5 @@
 from decimal import Decimal
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.database import get_db
@@ -73,14 +73,19 @@ async def seed_demo_users(db: AsyncSession = Depends(get_db)):
 
     created_users = []
     for user_data in DEMO_USERS:
-        bmoni_response = await bmoni_client.create_user(
-            user_data["first_name"], user_data["last_name"],
-            user_data["email"], user_data["phone"], user_data["bvn"]
-        )
-        bmoni_user_data = bmoni_response.get("data", {}).get("user", {})
-        bmoni_user_id = bmoni_user_data.get("id")
-        smart_wallets = bmoni_user_data.get("smartWallets") or []
-        smart_wallet_id = smart_wallets[0].get("id") if smart_wallets else None
+        try:
+            bmoni_response = await bmoni_client.create_user(
+                user_data["first_name"], user_data["last_name"],
+                user_data["email"], user_data["phone"], user_data["bvn"]
+            )
+            bmoni_user_data = bmoni_response.get("data", {}).get("user", {})
+            bmoni_user_id = bmoni_user_data.get("id")
+            smart_wallets = bmoni_user_data.get("smartWallets") or []
+            smart_wallet_id = smart_wallets[0].get("id") if smart_wallets else None
+        except Exception:
+            import uuid
+            bmoni_user_id = str(uuid.uuid4())
+            smart_wallet_id = str(uuid.uuid4())
 
         user = User(
             bmoni_user_id=bmoni_user_id,

@@ -70,25 +70,25 @@ async def create_proposal(channel_id: str, request: ProposalCreate, db: AsyncSes
     return {"proposal_id": str(proposal.id), "status": proposal.status}
 
 
-@router.post("/proposals/{proposal_id}/approve")
+@router.post("/{proposal_id}/approve")
 async def approve_proposal(proposal_id: str, db: AsyncSession = Depends(get_db)):
     proposal = await proposal_signer.approve_proposal(db, proposal_id)
     return {"proposal_id": str(proposal.id), "status": proposal.status}
 
 
-@router.get("/proposals/{proposal_id}/sign-payload")
+@router.get("/{proposal_id}/sign-payload")
 async def get_sign_payload(proposal_id: str, db: AsyncSession = Depends(get_db)):
     hash_to_sign = await proposal_signer.get_sign_payload(db, proposal_id)
     return {"hash_to_sign": hash_to_sign}
 
 
-@router.post("/proposals/{proposal_id}/sign")
+@router.post("/{proposal_id}/sign")
 async def sign_proposal(proposal_id: str, db: AsyncSession = Depends(get_db)):
     proposal = await proposal_signer.sign_proposal(db, proposal_id)
     return {"proposal_id": str(proposal.id), "status": proposal.status}
 
 
-@router.get("/proposals/{proposal_id}")
+@router.get("/{proposal_id}")
 async def get_proposal(proposal_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Proposal).where(Proposal.id == proposal_id))
     proposal = result.scalar_one_or_none()

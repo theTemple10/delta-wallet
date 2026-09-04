@@ -8,7 +8,7 @@ from app.services.groq_service import generate_split_proposal, generate_digest
 router = APIRouter()
 
 
-@router.get("/digest/{inflow_event_id}")
+@router.get("/{inflow_event_id}")
 async def get_digest(inflow_event_id: str, mode: str = "ai", db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(InflowEvent).where(InflowEvent.id == inflow_event_id))
     event = result.scalar_one_or_none()

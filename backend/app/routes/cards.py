@@ -24,7 +24,7 @@ class CardLimitUpdate(BaseModel):
     single_txn_limit: float
 
 
-@router.post("/cards")
+@router.post("")
 async def issue_card(request: CardCreate, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.id == request.user_id))
     user = result.scalar_one_or_none()
@@ -47,7 +47,7 @@ async def issue_card(request: CardCreate, db: AsyncSession = Depends(get_db)):
     return {"card_id": str(card.id), "status": card.status}
 
 
-@router.put("/cards/{card_id}/limit")
+@router.put("/{card_id}/limit")
 async def set_card_limit(card_id: str, request: CardLimitUpdate, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Card).where(Card.id == card_id))
     card = result.scalar_one_or_none()

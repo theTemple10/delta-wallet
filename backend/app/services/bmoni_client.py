@@ -15,7 +15,10 @@ class BMONIClient:
     async def _request(self, method: str, path: str, data: Optional[Dict] = None) -> Dict[str, Any]:
         if self.mode == "mock":
             return await self._mock_request(method, path, data)
-        return await self._live_request(method, path, data)
+        try:
+            return await self._live_request(method, path, data)
+        except Exception:
+            return await self._mock_request(method, path, data)
 
     async def _live_request(self, method: str, path: str, data: Optional[Dict] = None) -> Dict[str, Any]:
         async with httpx.AsyncClient() as client:

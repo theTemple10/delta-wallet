@@ -55,7 +55,7 @@ def _channel_to_dict(c: Channel) -> dict:
     }
 
 
-@router.post("/channels")
+@router.post("")
 async def create_channel(request: ChannelCreate, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.id == request.user_id))
     if not result.scalar_one_or_none():
@@ -78,7 +78,7 @@ async def create_channel(request: ChannelCreate, db: AsyncSession = Depends(get_
     return {"channel_id": str(channel.id), "label": channel.label}
 
 
-@router.get("/channels/{user_id}")
+@router.get("/{user_id}")
 async def get_user_channels(user_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Channel).where(Channel.user_id == user_id).order_by(Channel.priority_rank)

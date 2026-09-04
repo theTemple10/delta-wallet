@@ -14,7 +14,7 @@ class InflowRequest(BaseModel):
     currency: str = "USDB"
 
 
-@router.post("/inflow")
+@router.post("")
 async def simulate_inflow(request: InflowRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.id == request.user_id))
     user = result.scalar_one_or_none()
