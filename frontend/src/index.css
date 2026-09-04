@@ -153,6 +153,7 @@ h1, h2, h3, h4, h5, h6 {
   max-width: 480px;
   margin: 0 auto;
   padding: 20px;
+  padding-bottom: 100px;
   min-height: 100vh;
 }
 
@@ -268,6 +269,7 @@ h1, h2, h3, h4, h5, h6 {
 .status-pending { background: rgba(96, 165, 250, 0.2); color: #60a5fa; }
 .status-approved { background: rgba(52, 211, 153, 0.2); color: #34d399; }
 .status-completed { background: rgba(74, 222, 128, 0.2); color: #4ade80; }
+.status-error { background: rgba(239, 68, 68, 0.2); color: #f87171; }
 
 .action-buttons {
   display: flex;
@@ -293,7 +295,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .install-banner {
   position: fixed;
-  bottom: 20px;
+  bottom: 80px;
   left: 20px;
   right: 20px;
   max-width: 440px;
@@ -343,6 +345,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .slide-up {
   animation: slideUp 0.4s ease-out;
+  padding-bottom: 80px;
 }
 
 @keyframes slideUp {
@@ -680,7 +683,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .landing-footer {
-  padding: 40px 24px;
+  padding: 40px 24px 80px;
   border-top: 1px solid var(--glass-border);
 }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { proposeSplit, getChannels, createProposal, approveProposal, signProposal } from '../services/api';
+import { proposeSplit, getChannels, createProposal, approveProposal, signProposal, createChannel } from '../services/api';
 import { useToast } from '../components/Toast';
 
 export default function SplitPage() {
@@ -15,6 +15,8 @@ export default function SplitPage() {
   const [splits, setSplits] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showAddChannel, setShowAddChannel] = useState(false);
+  const [newChannel, setNewChannel] = useState({ label: '', type: 'spend', target_currency: 'CNGN', target_amount: '' });
 
   const loadChannels = useCallback(async (uid) => {
     try {
@@ -76,6 +78,71 @@ export default function SplitPage() {
     setLoading(false);
   };
 
+  const handleAddChannel = async () => {
+    if (!newChannel.label.trim()) {
+      toast.warning('Enter a channel name');
+      return;
+    }
+    const userId = localStorage.getItem('delta_user_id');
+    const tempId = 'temp_' + Date.now();
+
+    // Try to create on backend
+    if (userId) {
+      try {
+        const res = await createChannel({
+          user_id: userId,
+          label: newChannel.label.trim(),
+          type: newChannel.type,
+          target_currency: newChannel.target_currency,
+          target_amount: newChannel.target_amount ? parseFloat(newChannel.target_amount) : null,
+          period: 'monthly',
+          priority_rank: channels.length + 1
+        });
+        const channel = {
+          id: res.data.channel_id,
+          label: newChannel.label.trim(),
+          type: newChannel.type,
+          target_currency: newChannel.target_currency,
+          target_amount: newChannel.target_amount ? parseFloat(newChannel.target_amount) : null,
+          period: 'monthly',
+          priority_rank: channels.length + 1,
+          funded_amount: 0
+        };
+        setChannels(prev => [...prev, channel]);
+      } catch (err) {
+        console.error('Backend channel creation failed, using local:', err);
+        // Fall back to local
+        const channel = {
+          id: tempId,
+          label: newChannel.label.trim(),
+          type: newChannel.type,
+          target_currency: newChannel.target_currency,
+          target_amount: newChannel.target_amount ? parseFloat(newChannel.target_amount) : null,
+          period: 'monthly',
+          priority_rank: channels.length + 1,
+          funded_amount: 0
+        };
+        setChannels(prev => [...prev, channel]);
+      }
+    } else {
+      const channel = {
+        id: tempId,
+        label: newChannel.label.trim(),
+        type: newChannel.type,
+        target_currency: newChannel.target_currency,
+        target_amount: newChannel.target_amount ? parseFloat(newChannel.target_amount) : null,
+        period: 'monthly',
+        priority_rank: channels.length + 1,
+        funded_amount: 0
+      };
+      setChannels(prev => [...prev, channel]);
+    }
+
+    setNewChannel({ label: '', type: 'spend', target_currency: 'CNGN', target_amount: '' });
+    setShowAddChannel(false);
+    toast.success('Channel added');
+  };
+
   const handleApproveAndSign = async (split) => {
     setLoading(true);
     try {
@@ -91,17 +158,37 @@ export default function SplitPage() {
 
       const proposalId = proposalRes.data.proposal_id;
 
-      await approveProposal(proposalId);
-      await signProposal(proposalId);
+      try {
+        await approveProposal(proposalId);
+      } catch (approveErr) {
+        console.error('Approve failed:', approveErr);
+        toast.error('Approval failed: ' + (approveErr.response?.data?.detail || 'Server error'));
+        setSplits(prev => prev.map(s =>
+          s.channel_id === split.channel_id ? { ...s, status: 'approval-failed' } : s
+        ));
+        setLoading(false);
+        return;
+      }
+
+      try {
+        await signProposal(proposalId);
+      } catch (signErr) {
+        console.error('Sign failed:', signErr);
+        toast.error('Signing failed: ' + (signErr.response?.data?.detail || 'Server error'));
+        setSplits(prev => prev.map(s =>
+          s.channel_id === split.channel_id ? { ...s, status: 'sign-failed' } : s
+        ));
+        setLoading(false);
+        return;
+      }
 
       setSplits(prev => prev.map(s =>
         s.channel_id === split.channel_id ? { ...s, status: 'completed' } : s
       ));
       toast.success('Proposal approved & signed');
     } catch (err) {
-      setError('Approval/sign failed. Please try again.');
-      toast.error('Proposal failed');
-      console.error('Proposal flow failed:', err);
+      console.error('Proposal creation failed:', err);
+      toast.error('Proposal creation failed: ' + (err.response?.data?.detail || 'Check server logs'));
     }
     setLoading(false);
   };
@@ -192,8 +279,8 @@ export default function SplitPage() {
 
         <div className="channel-reason">{split.one_line_reason}</div>
 
-        <span className={`channel-status status-${isCompleted ? 'completed' : split.status || 'draft'}`}>
-          {isCompleted ? 'completed' : split.status || 'draft'}
+        <span className={`channel-status status-${isCompleted ? 'completed' : split.status === 'approval-failed' || split.status === 'sign-failed' ? 'error' : split.status || 'draft'}`}>
+          {isCompleted ? 'completed' : split.status === 'approval-failed' ? 'approval failed' : split.status === 'sign-failed' ? 'sign failed' : split.status || 'draft'}
         </span>
 
         {!isCompleted && hasAllocation && (
@@ -215,7 +302,7 @@ export default function SplitPage() {
   const renderManualMode = () => (
     <>
       <p className="stat-label" style={{ marginBottom: '16px' }}>
-        Enter an amount for each channel to send.
+        Enter an amount for each channel to send. Add new channels if needed.
       </p>
       <div className="channels-grid">
         {channels.map((ch) => (
@@ -244,6 +331,66 @@ export default function SplitPage() {
           </div>
         ))}
       </div>
+
+      {showAddChannel ? (
+        <div className="glass-card" style={{ marginTop: '16px' }}>
+          <div className="stat-label" style={{ marginBottom: '12px' }}>New Channel</div>
+          <input
+            className="input"
+            type="text"
+            placeholder="Channel name (e.g. Transport)"
+            value={newChannel.label}
+            onChange={(e) => setNewChannel(prev => ({ ...prev, label: e.target.value }))}
+            style={{ marginBottom: '10px' }}
+          />
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+            <select
+              className="input"
+              value={newChannel.type}
+              onChange={(e) => setNewChannel(prev => ({ ...prev, type: e.target.value }))}
+              style={{ flex: 1 }}
+            >
+              <option value="spend">Spend</option>
+              <option value="save">Save</option>
+              <option value="transfer">Transfer</option>
+            </select>
+            <select
+              className="input"
+              value={newChannel.target_currency}
+              onChange={(e) => setNewChannel(prev => ({ ...prev, target_currency: e.target.value }))}
+              style={{ flex: 1 }}
+            >
+              <option value="CNGN">CNGN</option>
+              <option value="USDB">USDB</option>
+            </select>
+          </div>
+          <input
+            className="input"
+            type="number"
+            placeholder="Monthly target (optional)"
+            value={newChannel.target_amount}
+            onChange={(e) => setNewChannel(prev => ({ ...prev, target_amount: e.target.value }))}
+            style={{ marginBottom: '12px' }}
+          />
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleAddChannel}>
+              Add
+            </button>
+            <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowAddChannel(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          className="btn btn-secondary"
+          style={{ width: '100%', marginTop: '16px' }}
+          onClick={() => setShowAddChannel(true)}
+        >
+          + Add Channel
+        </button>
+      )}
+
       <button className="btn btn-primary" style={{ width: '100%', marginTop: '16px' }} onClick={handleManualSplit} disabled={loading}>
         {loading ? <span className="spinner" /> : 'Submit Manual Split'}
       </button>
@@ -329,12 +476,72 @@ export default function SplitPage() {
                     <span style={{ fontSize: '14px' }}>{ch.label}</span>
                   </div>
                   <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                    {ch.target_amount !== null ? `$${ch.target_amount.toLocaleString()}` : 'Remainder'}
+                    {ch.target_amount !== null ? `${ch.target_currency === 'USDB' ? '$' : '\u20A6'}${ch.target_amount.toLocaleString()}` : 'Remainder'}
                   </div>
                 </div>
               ))}
             </div>
           )}
+
+          {showAddChannel ? (
+            <div className="glass-card" style={{ marginBottom: '16px' }}>
+              <div className="stat-label" style={{ marginBottom: '12px' }}>New Channel</div>
+              <input
+                className="input"
+                type="text"
+                placeholder="Channel name (e.g. Transport)"
+                value={newChannel.label}
+                onChange={(e) => setNewChannel(prev => ({ ...prev, label: e.target.value }))}
+                style={{ marginBottom: '10px' }}
+              />
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                <select
+                  className="input"
+                  value={newChannel.type}
+                  onChange={(e) => setNewChannel(prev => ({ ...prev, type: e.target.value }))}
+                  style={{ flex: 1 }}
+                >
+                  <option value="spend">Spend</option>
+                  <option value="save">Save</option>
+                  <option value="transfer">Transfer</option>
+                </select>
+                <select
+                  className="input"
+                  value={newChannel.target_currency}
+                  onChange={(e) => setNewChannel(prev => ({ ...prev, target_currency: e.target.value }))}
+                  style={{ flex: 1 }}
+                >
+                  <option value="CNGN">CNGN</option>
+                  <option value="USDB">USDB</option>
+                </select>
+              </div>
+              <input
+                className="input"
+                type="number"
+                placeholder="Monthly target (optional)"
+                value={newChannel.target_amount}
+                onChange={(e) => setNewChannel(prev => ({ ...prev, target_amount: e.target.value }))}
+                style={{ marginBottom: '12px' }}
+              />
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleAddChannel}>
+                  Add
+                </button>
+                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowAddChannel(false)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              className="btn btn-secondary"
+              style={{ width: '100%', marginBottom: '12px' }}
+              onClick={() => setShowAddChannel(true)}
+            >
+              + Add Channel
+            </button>
+          )}
+
           <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleAISplit} disabled={loading}>
             {loading ? <span className="spinner" /> : 'Generate Priority Split'}
           </button>

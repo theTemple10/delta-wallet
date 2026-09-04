@@ -25,12 +25,13 @@ DEMO_USERS = [
 
 # Priority-ranked: lower rank = funded first
 # Obligations (rent, family) get lowest numbers; discretionary gets highest
+# Amounts in USD equivalent for a Nigerian tech worker
 DEMO_CHANNELS = [
     {
         "label": "Family \u2014 Samson",
         "type": ChannelType.TRANSFER,
         "target_currency": "CNGN",
-        "target_amount": Decimal("50000"),
+        "target_amount": Decimal("150000"),  # ~$187.50 at 800/$1
         "period": PeriodType.MONTHLY,
         "priority_rank": 1,
     },
@@ -38,7 +39,7 @@ DEMO_CHANNELS = [
         "label": "Rent",
         "type": ChannelType.SPEND,
         "target_currency": "CNGN",
-        "target_amount": Decimal("80000"),
+        "target_amount": Decimal("250000"),  # ~$312.50 at 800/$1
         "period": PeriodType.MONTHLY,
         "priority_rank": 2,
     },

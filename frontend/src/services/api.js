@@ -9,6 +9,7 @@ const api = axios.create({
 
 export const seedUsers = () => api.post('/users/seed');
 export const getChannels = (userId) => api.get(`/channels/${userId}`);
+export const createChannel = (data) => api.post('/channels', data);
 export const simulateInflow = (userId, amount, currency = 'USDB') =>
   api.post('/inflow', { user_id: userId, amount, currency });
 export const proposeSplit = (inflowEventId, mode, splits = null) =>

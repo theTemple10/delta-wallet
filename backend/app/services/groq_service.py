@@ -1,4 +1,5 @@
 import groq
+import json
 from typing import List, Dict
 from app.config import get_settings
 
@@ -11,23 +12,44 @@ def get_groq_client():
 async def generate_split_proposal(amount: float, currency: str, channels: List[Dict]) -> List[Dict]:
     try:
         client = get_groq_client()
-        channels_text = "\n".join([f"- {c['label']} ({c['type']}, {c['target_currency']})" for c in channels])
+        channels_text = "\n".join([
+            f"- {c['label']} ({c['type']}, target: {c.get('target_currency', 'CNGN')})"
+            for c in channels
+        ])
 
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{
                 "role": "user",
-                "content": f"""Split {amount} {currency} across these channels. Return JSON array with channel_id, amount, one_line_reason.
+                "content": f"""You are a financial advisor for a Nigerian tech worker earning {currency}.
+Split {amount} {currency} across these spending channels. Use realistic Nigerian amounts:
+- Family support: 15-30% of income
+- Rent/housing: 20-35% of income
+- Savings: 10-20% of income
+- Discretionary: remainder
+
 Channels:
 {channels_text}
-Keep reasons short and concrete (e.g. "rent is due in 6 days"). Return ONLY valid JSON."""
+
+Return a JSON object with "splits" key containing array of objects with: channel_id, amount (number), one_line_reason (short, concrete like "rent due in 8 days").
+Return ONLY valid JSON. Do not exceed the total amount."""
             }],
             response_format={"type": "json_object"}
         )
-        import json
-        return json.loads(response.choices[0].message.content).get("splits", [])
+        result = json.loads(response.choices[0].message.content)
+        return result.get("splits", result if isinstance(result, list) else [])
     except Exception:
-        return [{"channel_id": str(c["id"]), "amount": amount / len(channels), "one_line_reason": "Default split"} for c in channels]
+        # Nigeria-realistic default percentages
+        default_pcts = [0.25, 0.30, 0.15, 0.30]
+        splits = []
+        for i, c in enumerate(channels):
+            pct = default_pcts[i] if i < len(default_pcts) else (1.0 / len(channels))
+            splits.append({
+                "channel_id": str(c["id"]),
+                "amount": round(amount * pct, 2),
+                "one_line_reason": f"Priority {i+1} allocation ({int(pct*100)}%)"
+            })
+        return splits
 
 
 async def generate_digest(event, proposals) -> str:
