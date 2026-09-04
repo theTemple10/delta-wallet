@@ -1077,3 +1077,30 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 14px;
   color: #4ade80;
 }
+
+/* ============================================
+   CHANNEL ACTION BUTTONS (edit/delete)
+   ============================================ */
+
+.channel-action-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.channel-action-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.channel-action-btn-danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { proposeSplit, getChannels, createProposal, approveProposal, signProposal, createChannel } from '../services/api';
+import { proposeSplit, getChannels, createProposal, approveProposal, signProposal, createChannel, updateChannel, deleteChannel } from '../services/api';
 import { useToast } from '../components/Toast';
 
 export default function SplitPage() {
@@ -17,6 +17,10 @@ export default function SplitPage() {
   const [error, setError] = useState('');
   const [showAddChannel, setShowAddChannel] = useState(false);
   const [newChannel, setNewChannel] = useState({ label: '', type: 'spend', target_currency: 'CNGN', target_amount: '' });
+  const [editingChannel, setEditingChannel] = useState(null);
+  const [editForm, setEditForm] = useState({ label: '', type: 'spend', target_currency: 'CNGN', target_amount: '' });
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [channelLoading, setChannelLoading] = useState(null);
 
   const loadChannels = useCallback(async (uid) => {
     try {
@@ -141,6 +145,61 @@ export default function SplitPage() {
     setNewChannel({ label: '', type: 'spend', target_currency: 'CNGN', target_amount: '' });
     setShowAddChannel(false);
     toast.success('Channel added');
+  };
+
+  const startEditChannel = (ch) => {
+    setEditingChannel(ch.id);
+    setEditForm({
+      label: ch.label,
+      type: ch.type,
+      target_currency: ch.target_currency,
+      target_amount: ch.target_amount !== null ? String(ch.target_amount) : ''
+    });
+  };
+
+  const handleEditChannel = async () => {
+    if (!editForm.label.trim()) {
+      toast.warning('Enter a channel name');
+      return;
+    }
+    setChannelLoading(editingChannel);
+    try {
+      await updateChannel(editingChannel, {
+        label: editForm.label.trim(),
+        type: editForm.type,
+        target_currency: editForm.target_currency,
+        target_amount: editForm.target_amount ? parseFloat(editForm.target_amount) : null
+      });
+      setChannels(prev => prev.map(c =>
+        c.id === editingChannel ? {
+          ...c,
+          label: editForm.label.trim(),
+          type: editForm.type,
+          target_currency: editForm.target_currency,
+          target_amount: editForm.target_amount ? parseFloat(editForm.target_amount) : null
+        } : c
+      ));
+      setEditingChannel(null);
+      toast.success('Channel updated');
+    } catch (err) {
+      console.error('Update channel failed:', err);
+      toast.error('Failed to update channel');
+    }
+    setChannelLoading(null);
+  };
+
+  const handleDeleteChannel = async (channelId) => {
+    setChannelLoading(channelId);
+    try {
+      await deleteChannel(channelId);
+      setChannels(prev => prev.filter(c => c.id !== channelId));
+      setConfirmDelete(null);
+      toast.success('Channel deleted');
+    } catch (err) {
+      console.error('Delete channel failed:', err);
+      toast.error(err.response?.data?.detail || 'Failed to delete channel');
+    }
+    setChannelLoading(null);
   };
 
   const handleApproveAndSign = async (split) => {
@@ -307,27 +366,79 @@ export default function SplitPage() {
       <div className="channels-grid">
         {channels.map((ch) => (
           <div key={ch.id} className={`glass-card channel-${ch.type}`}>
-            <div className="channel-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '16px' }}>{channelTypeIcon(ch.type)}</span>
-                <div className="channel-label">{ch.label}</div>
+            {editingChannel === ch.id ? (
+              <div>
+                <div className="stat-label" style={{ marginBottom: '8px' }}>Edit Channel</div>
+                <input className="input" type="text" value={editForm.label}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, label: e.target.value }))}
+                  style={{ marginBottom: '8px' }} placeholder="Channel name" />
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                  <select className="input" value={editForm.type}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, type: e.target.value }))} style={{ flex: 1 }}>
+                    <option value="spend">Spend</option>
+                    <option value="save">Save</option>
+                    <option value="transfer">Transfer</option>
+                  </select>
+                  <select className="input" value={editForm.target_currency}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, target_currency: e.target.value }))} style={{ flex: 1 }}>
+                    <option value="CNGN">CNGN</option>
+                    <option value="USDB">USDB</option>
+                  </select>
+                </div>
+                <input className="input" type="number" placeholder="Monthly target (optional)"
+                  value={editForm.target_amount}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, target_amount: e.target.value }))}
+                  style={{ marginBottom: '10px' }} />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleEditChannel} disabled={channelLoading === ch.id}>
+                    {channelLoading === ch.id ? <span className="spinner" /> : 'Save'}
+                  </button>
+                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEditingChannel(null)}>Cancel</button>
+                </div>
               </div>
-              <span className="stat-label">{ch.target_currency}</span>
-            </div>
-            {ch.target_amount !== null && (
-              <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                Target: ${ch.target_amount.toLocaleString()} / month
+            ) : confirmDelete === ch.id ? (
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '10px' }}>Delete "{ch.label}"?</p>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button className="btn btn-success" style={{ flex: 1 }} onClick={() => handleDeleteChannel(ch.id)} disabled={channelLoading === ch.id}>
+                    {channelLoading === ch.id ? <span className="spinner" /> : 'Confirm'}
+                  </button>
+                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setConfirmDelete(null)}>Cancel</button>
+                </div>
               </div>
+            ) : (
+              <>
+                <div className="channel-header">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '16px' }}>{channelTypeIcon(ch.type)}</span>
+                    <div className="channel-label">{ch.label}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span className="stat-label">{ch.target_currency}</span>
+                    <button className="channel-action-btn" onClick={() => startEditChannel(ch)} title="Edit">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button className="channel-action-btn channel-action-btn-danger" onClick={() => setConfirmDelete(ch.id)} title="Delete">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  </div>
+                </div>
+                {ch.target_amount !== null && (
+                  <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                    Target: {ch.target_currency === 'USDB' ? '$' : '\u20A6'}{ch.target_amount.toLocaleString()} / month
+                  </div>
+                )}
+                <input
+                  className="input"
+                  type="number"
+                  placeholder="Amount"
+                  min="0"
+                  value={manualAmounts[ch.id] || ''}
+                  onChange={(e) => setManualAmounts((prev) => ({ ...prev, [ch.id]: e.target.value }))}
+                  style={{ marginTop: '12px', width: '100%' }}
+                />
+              </>
             )}
-            <input
-              className="input"
-              type="number"
-              placeholder="Amount"
-              min="0"
-              value={manualAmounts[ch.id] || ''}
-              onChange={(e) => setManualAmounts((prev) => ({ ...prev, [ch.id]: e.target.value }))}
-              style={{ marginTop: '12px', width: '100%' }}
-            />
           </div>
         ))}
       </div>
@@ -462,22 +573,72 @@ export default function SplitPage() {
               <div className="stat-label" style={{ marginBottom: '12px' }}>Channel priorities (funded in order)</div>
               {channels.map((ch, i) => (
                 <div key={ch.id} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   padding: '8px 0', borderBottom: i < channels.length - 1 ? '1px solid var(--glass-border)' : 'none'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{
-                      width: '20px', height: '20px', borderRadius: '50%', fontSize: '11px', fontWeight: 700,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: 'rgba(175, 1, 175, 0.2)', color: 'var(--accent-secondary)'
-                    }}>
-                      {ch.priority_rank}
-                    </span>
-                    <span style={{ fontSize: '14px' }}>{ch.label}</span>
-                  </div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                    {ch.target_amount !== null ? `${ch.target_currency === 'USDB' ? '$' : '\u20A6'}${ch.target_amount.toLocaleString()}` : 'Remainder'}
-                  </div>
+                  {editingChannel === ch.id ? (
+                    <div style={{ padding: '8px 0' }}>
+                      <input className="input" type="text" value={editForm.label}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, label: e.target.value }))}
+                        style={{ marginBottom: '8px' }} placeholder="Channel name" />
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                        <select className="input" value={editForm.type}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, type: e.target.value }))} style={{ flex: 1 }}>
+                          <option value="spend">Spend</option>
+                          <option value="save">Save</option>
+                          <option value="transfer">Transfer</option>
+                        </select>
+                        <select className="input" value={editForm.target_currency}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, target_currency: e.target.value }))} style={{ flex: 1 }}>
+                          <option value="CNGN">CNGN</option>
+                          <option value="USDB">USDB</option>
+                        </select>
+                      </div>
+                      <input className="input" type="number" placeholder="Monthly target (optional)"
+                        value={editForm.target_amount}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, target_amount: e.target.value }))}
+                        style={{ marginBottom: '8px' }} />
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleEditChannel} disabled={channelLoading === ch.id}>
+                          {channelLoading === ch.id ? <span className="spinner" /> : 'Save'}
+                        </button>
+                        <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEditingChannel(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : confirmDelete === ch.id ? (
+                    <div style={{ padding: '8px 0', textAlign: 'center' }}>
+                      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '10px' }}>Delete "{ch.label}"?</p>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className="btn btn-success" style={{ flex: 1 }} onClick={() => handleDeleteChannel(ch.id)} disabled={channelLoading === ch.id}>
+                          {channelLoading === ch.id ? <span className="spinner" /> : 'Confirm'}
+                        </button>
+                        <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setConfirmDelete(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{
+                          width: '20px', height: '20px', borderRadius: '50%', fontSize: '11px', fontWeight: 700,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          background: 'rgba(175, 1, 175, 0.2)', color: 'var(--accent-secondary)'
+                        }}>
+                          {ch.priority_rank}
+                        </span>
+                        <span style={{ fontSize: '14px' }}>{ch.label}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                          {ch.target_amount !== null ? `${ch.target_currency === 'USDB' ? '$' : '\u20A6'}${ch.target_amount.toLocaleString()}` : 'Remainder'}
+                        </span>
+                        <button className="channel-action-btn" onClick={() => startEditChannel(ch)} title="Edit">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
+                        <button className="channel-action-btn channel-action-btn-danger" onClick={() => setConfirmDelete(ch.id)} title="Delete">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

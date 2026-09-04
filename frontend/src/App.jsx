@@ -96,7 +96,7 @@ function App() {
           <Route path="/app" element={
             <div className="container">
               <div className="header">
-                <div className="logo">Delta</div>
+                <Link to="/" className="logo" style={{ textDecoration: 'none' }}>Delta</Link>
               </div>
               <InflowPage />
             </div>
@@ -104,7 +104,7 @@ function App() {
           <Route path="/app/split/:inflowEventId" element={
             <div className="container">
               <div className="header">
-                <div className="logo">Delta</div>
+                <Link to="/" className="logo" style={{ textDecoration: 'none' }}>Delta</Link>
               </div>
               <SplitPage />
             </div>
@@ -112,7 +112,7 @@ function App() {
           <Route path="/app/proposals" element={
             <div className="container">
               <div className="header">
-                <div className="logo">Delta</div>
+                <Link to="/" className="logo" style={{ textDecoration: 'none' }}>Delta</Link>
               </div>
               <ProposalsPage />
             </div>
@@ -120,7 +120,7 @@ function App() {
           <Route path="/app/digest/:inflowEventId" element={
             <div className="container">
               <div className="header">
-                <div className="logo">Delta</div>
+                <Link to="/" className="logo" style={{ textDecoration: 'none' }}>Delta</Link>
               </div>
               <DigestPage />
             </div>
@@ -128,7 +128,7 @@ function App() {
           <Route path="/app/cards" element={
             <div className="container">
               <div className="header">
-                <div className="logo">Delta</div>
+                <Link to="/" className="logo" style={{ textDecoration: 'none' }}>Delta</Link>
               </div>
               <CardsPage />
             </div>
