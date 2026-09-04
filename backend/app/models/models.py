@@ -62,7 +62,7 @@ class User(Base):
     demo_persona = Column(SAEnum(DemoPersona), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    channels = relationship("Channel", back_populates="user")
+    channels = relationship("Channel", back_populates="user", foreign_keys="[Channel.user_id]")
     inflow_events = relationship("InflowEvent", back_populates="user")
 
 
