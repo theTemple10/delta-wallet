@@ -84,6 +84,11 @@ class Channel(Base):
     funded_amount = Column(Numeric(12, 2), nullable=False, default=Decimal("0"))
     period_start = Column(Date, nullable=True, default=date.today)
 
+    # Payout destination (for mature savings/transfers)
+    bank_name = Column(String, nullable=True)
+    account_number = Column(String, nullable=True)
+    account_name = Column(String, nullable=True)
+
     user = relationship("User", back_populates="channels", foreign_keys=[user_id])
     proposals = relationship("Proposal", back_populates="channel")
 

@@ -6,7 +6,7 @@ from sqlalchemy import select
 from pydantic import BaseModel
 from typing import List, Optional
 from app.db.database import get_db
-from app.models.models import Channel, User, ChannelType, PeriodType
+from app.models.models import Channel, User, ChannelType, PeriodType, Proposal, ProposalStatus
 
 router = APIRouter()
 
@@ -20,6 +20,9 @@ class ChannelCreate(BaseModel):
     target_amount: Optional[float] = None
     period: Optional[str] = "monthly"
     priority_rank: Optional[int] = 100
+    bank_name: Optional[str] = None
+    account_number: Optional[str] = None
+    account_name: Optional[str] = None
 
 
 class ChannelUpdate(BaseModel):
@@ -29,6 +32,9 @@ class ChannelUpdate(BaseModel):
     target_amount: Optional[float] = None
     period: Optional[str] = None
     priority_rank: Optional[int] = None
+    bank_name: Optional[str] = None
+    account_number: Optional[str] = None
+    account_name: Optional[str] = None
 
 
 def _period_length_days(period: PeriodType) -> int:
@@ -61,6 +67,10 @@ def _channel_to_dict(c: Channel) -> dict:
         "period": c.period.value if hasattr(c.period, 'value') else c.period,
         "priority_rank": c.priority_rank,
         "funded_amount": float(funded),
+        "bank_name": c.bank_name,
+        "account_number": c.account_number,
+        "account_name": c.account_name,
+        "mature": c.target_amount is not None and funded >= c.target_amount if c.target_amount else False,
     }
 
 
@@ -80,6 +90,9 @@ async def create_channel(request: ChannelCreate, db: AsyncSession = Depends(get_
         period=PeriodType(request.period) if request.period else PeriodType.MONTHLY,
         priority_rank=request.priority_rank or 100,
         funded_amount=Decimal("0"),
+        bank_name=request.bank_name,
+        account_number=request.account_number,
+        account_name=request.account_name,
     )
     db.add(channel)
     await db.commit()
@@ -115,6 +128,12 @@ async def update_channel(channel_id: str, request: ChannelUpdate, db: AsyncSessi
         channel.period = PeriodType(request.period)
     if request.priority_rank is not None:
         channel.priority_rank = request.priority_rank
+    if request.bank_name is not None:
+        channel.bank_name = request.bank_name
+    if request.account_number is not None:
+        channel.account_number = request.account_number
+    if request.account_name is not None:
+        channel.account_name = request.account_name
 
     await db.commit()
     await db.refresh(channel)
@@ -131,3 +150,55 @@ async def delete_channel(channel_id: str, db: AsyncSession = Depends(get_db)):
     await db.delete(channel)
     await db.commit()
     return {"message": "Channel deleted", "channel_id": channel_id}
+
+
+class AccountDetailsUpdate(BaseModel):
+    bank_name: str
+    account_number: str
+    account_name: str
+
+
+@router.put("/{channel_id}/account")
+async def update_account_details(channel_id: str, request: AccountDetailsUpdate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Channel).where(Channel.id == channel_id))
+    channel = result.scalar_one_or_none()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    channel.bank_name = request.bank_name
+    channel.account_number = request.account_number
+    channel.account_name = request.account_name
+    await db.commit()
+    await db.refresh(channel)
+    return _channel_to_dict(channel)
+
+
+@router.post("/{channel_id}/payout")
+async def simulate_payout(channel_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Channel).where(Channel.id == channel_id))
+    channel = result.scalar_one_or_none()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    if not channel.target_amount:
+        raise HTTPException(status_code=400, detail="Channel has no target amount")
+    funded = channel.funded_amount or Decimal("0")
+    if funded < channel.target_amount:
+        raise HTTPException(status_code=400, detail=f"Channel not yet mature. Funded: {funded}, Target: {channel.target_amount}")
+
+    payout_amount = float(channel.funded_amount)
+
+    # Reset the channel for next period
+    channel.funded_amount = Decimal("0")
+    channel.period_start = date.today()
+    await db.commit()
+
+    return {
+        "channel_id": str(channel.id),
+        "label": channel.label,
+        "type": channel.type.value if hasattr(channel.type, 'value') else channel.type,
+        "payout_amount": payout_amount,
+        "currency": channel.target_currency,
+        "bank_name": channel.bank_name,
+        "account_number": channel.account_number,
+        "account_name": channel.account_name,
+        "status": "payout_simulated",
+    }

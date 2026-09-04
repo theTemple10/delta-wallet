@@ -128,7 +128,24 @@ async def propose_split(inflow_event_id: str, request: SplitRequest, db: AsyncSe
 
         splits = allocations
     elif request.mode == "manual" and request.splits:
-        splits = request.splits
+        splits = []
+        channel_map = {str(c.id): c for c in channels}
+        for s in request.splits:
+            ch = channel_map.get(s.get("channel_id", ""))
+            if ch:
+                splits.append({
+                    "channel_id": str(ch.id),
+                    "label": ch.label,
+                    "type": ch.type.value if hasattr(ch.type, 'value') else ch.type,
+                    "target_currency": ch.target_currency,
+                    "target_amount": float(ch.target_amount) if ch.target_amount else None,
+                    "funded_amount": float(ch.funded_amount or Decimal("0")),
+                    "shortfall": float(max((ch.target_amount or Decimal("0")) - (ch.funded_amount or Decimal("0")), Decimal("0"))),
+                    "amount": float(s.get("amount", 0)),
+                    "one_line_reason": s.get("one_line_reason", "Manual split"),
+                })
+            else:
+                splits.append(s)
     else:
         splits = []
 

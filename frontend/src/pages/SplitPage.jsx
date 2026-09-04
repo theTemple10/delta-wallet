@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { proposeSplit, getChannels, createProposal, approveProposal, signProposal, createChannel, updateChannel, deleteChannel } from '../services/api';
+import { proposeSplit, getChannels, createProposal, approveProposal, signProposal, createChannel, updateChannel, deleteChannel, updateAccountDetails, simulatePayout, getBalance } from '../services/api';
 import { useToast } from '../components/Toast';
+
+const CURRENCY_DISPLAY = { USDB: 'USD', CNGN: 'NGN' };
 
 export default function SplitPage() {
   const { inflowEventId } = useParams();
@@ -21,6 +23,19 @@ export default function SplitPage() {
   const [editForm, setEditForm] = useState({ label: '', type: 'spend', target_currency: 'CNGN', target_amount: '' });
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [channelLoading, setChannelLoading] = useState(null);
+  const [balance, setBalance] = useState(null);
+  const [totalSigned, setTotalSigned] = useState(0);
+  const [accountForm, setAccountForm] = useState(null);
+  const [payoutLoading, setPayoutLoading] = useState(null);
+
+  const loadBalance = useCallback(async (uid) => {
+    try {
+      const res = await getBalance(uid);
+      setBalance(res.data.balances || []);
+    } catch (err) {
+      console.error('Failed to load balance:', err);
+    }
+  }, []);
 
   const loadChannels = useCallback(async (uid) => {
     try {
@@ -35,8 +50,12 @@ export default function SplitPage() {
     const stored = localStorage.getItem('delta_user_id');
     if (stored) {
       loadChannels(stored);
+      loadBalance(stored);
     }
-  }, [loadChannels]);
+  }, [loadChannels, loadBalance]);
+
+  const getCurrencySymbol = (c) => c === 'USDB' ? '$' : '\u20A6';
+  const getDisplayCurrency = (c) => CURRENCY_DISPLAY[c] || c;
 
   const handleAISplit = async () => {
     setLoading(true);
@@ -72,7 +91,7 @@ export default function SplitPage() {
     setError('');
     try {
       const res = await proposeSplit(inflowEventId, 'manual', splitsPayload);
-      setSplits(res.data.splits);
+      setSplits(res.data.splits || []);
       toast.success('Manual split submitted');
     } catch (err) {
       setError('Manual split failed. Please try again.');
@@ -88,49 +107,22 @@ export default function SplitPage() {
       return;
     }
     const userId = localStorage.getItem('delta_user_id');
-    const tempId = 'temp_' + Date.now();
-
-    // Try to create on backend
-    if (userId) {
-      try {
-        const res = await createChannel({
-          user_id: userId,
-          label: newChannel.label.trim(),
-          type: newChannel.type,
-          target_currency: newChannel.target_currency,
-          target_amount: newChannel.target_amount ? parseFloat(newChannel.target_amount) : null,
-          period: 'monthly',
-          priority_rank: channels.length + 1
-        });
-        const channel = {
-          id: res.data.channel_id,
-          label: newChannel.label.trim(),
-          type: newChannel.type,
-          target_currency: newChannel.target_currency,
-          target_amount: newChannel.target_amount ? parseFloat(newChannel.target_amount) : null,
-          period: 'monthly',
-          priority_rank: channels.length + 1,
-          funded_amount: 0
-        };
-        setChannels(prev => [...prev, channel]);
-      } catch (err) {
-        console.error('Backend channel creation failed, using local:', err);
-        // Fall back to local
-        const channel = {
-          id: tempId,
-          label: newChannel.label.trim(),
-          type: newChannel.type,
-          target_currency: newChannel.target_currency,
-          target_amount: newChannel.target_amount ? parseFloat(newChannel.target_amount) : null,
-          period: 'monthly',
-          priority_rank: channels.length + 1,
-          funded_amount: 0
-        };
-        setChannels(prev => [...prev, channel]);
-      }
-    } else {
+    if (!userId) {
+      toast.error('No user found. Seed first.');
+      return;
+    }
+    try {
+      const res = await createChannel({
+        user_id: userId,
+        label: newChannel.label.trim(),
+        type: newChannel.type,
+        target_currency: newChannel.target_currency,
+        target_amount: newChannel.target_amount ? parseFloat(newChannel.target_amount) : null,
+        period: 'monthly',
+        priority_rank: channels.length + 1
+      });
       const channel = {
-        id: tempId,
+        id: res.data.channel_id,
         label: newChannel.label.trim(),
         type: newChannel.type,
         target_currency: newChannel.target_currency,
@@ -140,8 +132,10 @@ export default function SplitPage() {
         funded_amount: 0
       };
       setChannels(prev => [...prev, channel]);
+    } catch (err) {
+      console.error('Backend channel creation failed:', err);
+      toast.error('Failed to create channel on server');
     }
-
     setNewChannel({ label: '', type: 'spend', target_currency: 'CNGN', target_amount: '' });
     setShowAddChannel(false);
     toast.success('Channel added');
@@ -216,6 +210,11 @@ export default function SplitPage() {
       });
 
       const proposalId = proposalRes.data.proposal_id;
+      if (!proposalId) {
+        toast.error('Server did not return a proposal ID');
+        setLoading(false);
+        return;
+      }
 
       try {
         await approveProposal(proposalId);
@@ -244,13 +243,53 @@ export default function SplitPage() {
       setSplits(prev => prev.map(s =>
         s.channel_id === split.channel_id ? { ...s, status: 'completed' } : s
       ));
+      setTotalSigned(prev => prev + split.amount);
       toast.success('Proposal approved & signed');
+
+      const userId = localStorage.getItem('delta_user_id');
+      if (userId) loadBalance(userId);
     } catch (err) {
       console.error('Proposal creation failed:', err);
       toast.error('Proposal creation failed: ' + (err.response?.data?.detail || 'Check server logs'));
     }
     setLoading(false);
   };
+
+  const handleSaveAccount = async (channelId) => {
+    if (!accountForm.bank_name || !accountForm.account_number || !accountForm.account_name) {
+      toast.warning('Fill in all account details');
+      return;
+    }
+    try {
+      await updateAccountDetails(channelId, accountForm);
+      setChannels(prev => prev.map(c =>
+        c.id === channelId ? { ...c, ...accountForm } : c
+      ));
+      setAccountForm(null);
+      toast.success('Account details saved');
+    } catch (err) {
+      toast.error('Failed to save account details');
+    }
+  };
+
+  const handlePayout = async (channelId) => {
+    setPayoutLoading(channelId);
+    try {
+      const res = await simulatePayout(channelId);
+      const p = res.data;
+      toast.success(`Payout simulated: ${getCurrencySymbol(p.currency)}${p.payout_amount.toLocaleString()} to ${p.account_name} at ${p.bank_name}`);
+      const userId = localStorage.getItem('delta_user_id');
+      if (userId) {
+        loadBalance(userId);
+        loadChannels(userId);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Payout failed');
+    }
+    setPayoutLoading(null);
+  };
+
+  const remainingAfterSplits = parseFloat(amount) - totalSigned;
 
   const allCompleted = splits.length > 0 && splits.every(s => s.status === 'completed' || s.amount === 0);
 
@@ -279,6 +318,7 @@ export default function SplitPage() {
     const hasAllocation = split.amount > 0;
     const isFullyFunded = split.shortfall === 0 && split.target_amount !== null;
     const noTarget = split.target_amount === null;
+    const displayCurrency = split.target_currency || channel.target_currency || currency;
 
     return (
       <div
@@ -291,7 +331,7 @@ export default function SplitPage() {
             position: 'absolute', top: '12px', right: '12px',
             background: 'rgba(16, 185, 129, 0.2)', borderRadius: '50%',
             width: '28px', height: '28px', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', fontSize: '14px'
+            justifyContent: 'center', fontSize: '14px', color: '#4ade80'
           }}>
             {'\u2713'}
           </div>
@@ -303,17 +343,16 @@ export default function SplitPage() {
             <div className="channel-label">{split.label || channel.label || 'Channel'}</div>
           </div>
           <div className="channel-amount" style={{ color: channelTypeColor(type) }}>
-            ${split.amount.toFixed(2)}
+            {getCurrencySymbol(displayCurrency)}{split.amount.toFixed(2)}
           </div>
         </div>
 
-        {/* Shortfall visualization */}
         {split.target_amount !== null && (
           <div style={{ marginTop: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
-              <span>Funded: ${split.funded_amount.toFixed(0)} of ${split.target_amount.toFixed(0)}</span>
+              <span>Funded: {getCurrencySymbol(displayCurrency)}{split.funded_amount.toFixed(0)} of {getCurrencySymbol(displayCurrency)}{split.target_amount.toFixed(0)}</span>
               <span style={{ color: split.shortfall > 0 ? '#fbbf24' : '#4ade80' }}>
-                {split.shortfall > 0 ? `Needs $${split.shortfall.toFixed(0)}` : 'Fully funded'}
+                {split.shortfall > 0 ? `Needs ${getCurrencySymbol(displayCurrency)}${split.shortfall.toFixed(0)}` : 'Fully funded'}
               </span>
             </div>
             <div style={{ height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
@@ -341,6 +380,43 @@ export default function SplitPage() {
         <span className={`channel-status status-${isCompleted ? 'completed' : split.status === 'approval-failed' || split.status === 'sign-failed' ? 'error' : split.status || 'draft'}`}>
           {isCompleted ? 'completed' : split.status === 'approval-failed' ? 'approval failed' : split.status === 'sign-failed' ? 'sign failed' : split.status || 'draft'}
         </span>
+
+        {isFullyFunded && !channel.account_name && (
+          <div style={{ marginTop: '12px' }}>
+            {accountForm && accountForm._channelId === split.channel_id ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <input className="input" placeholder="Bank name" value={accountForm.bank_name || ''}
+                  onChange={(e) => setAccountForm(prev => ({ ...prev, bank_name: e.target.value }))} style={{ fontSize: '13px', padding: '10px' }} />
+                <input className="input" placeholder="Account number" value={accountForm.account_number || ''}
+                  onChange={(e) => setAccountForm(prev => ({ ...prev, account_number: e.target.value }))} style={{ fontSize: '13px', padding: '10px' }} />
+                <input className="input" placeholder="Account name" value={accountForm.account_name || ''}
+                  onChange={(e) => setAccountForm(prev => ({ ...prev, account_name: e.target.value }))} style={{ fontSize: '13px', padding: '10px' }} />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button className="btn btn-success" style={{ flex: 1, fontSize: '12px' }} onClick={() => handleSaveAccount(split.channel_id)}>Save</button>
+                  <button className="btn btn-secondary" style={{ flex: 1, fontSize: '12px' }} onClick={() => setAccountForm(null)}>Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <button className="btn btn-secondary" style={{ width: '100%', fontSize: '12px', marginTop: '8px' }}
+                onClick={() => setAccountForm({ _channelId: split.channel_id, bank_name: '', account_number: '', account_name: '' })}>
+                Add payout account
+              </button>
+            )}
+          </div>
+        )}
+
+        {isFullyFunded && channel.account_name && (
+          <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', fontSize: '12px' }}>
+            <div style={{ color: '#4ade80', fontWeight: 600, marginBottom: '4px' }}>Ready to send</div>
+            <div style={{ color: 'var(--text-secondary)' }}>
+              {channel.account_name} at {channel.bank_name} ({channel.account_number})
+            </div>
+            <button className="btn btn-success" style={{ width: '100%', marginTop: '8px', fontSize: '12px' }}
+              onClick={() => handlePayout(split.channel_id)} disabled={payoutLoading === split.channel_id}>
+              {payoutLoading === split.channel_id ? <span className="spinner" /> : 'Send Funds'}
+            </button>
+          </div>
+        )}
 
         {!isCompleted && hasAllocation && (
           <div className="action-buttons">
@@ -371,39 +447,39 @@ export default function SplitPage() {
                 <div className="stat-label" style={{ marginBottom: '8px' }}>Edit Channel</div>
                 <input className="input" type="text" value={editForm.label}
                   onChange={(e) => setEditForm(prev => ({ ...prev, label: e.target.value }))}
-                  style={{ marginBottom: '8px' }} placeholder="Channel name" />
+                  style={{ marginBottom: '8px', fontSize: '13px', padding: '10px' }} placeholder="Channel name" />
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                   <select className="input" value={editForm.type}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, type: e.target.value }))} style={{ flex: 1 }}>
+                    onChange={(e) => setEditForm(prev => ({ ...prev, type: e.target.value }))} style={{ flex: 1, fontSize: '13px', padding: '10px' }}>
                     <option value="spend">Spend</option>
                     <option value="save">Save</option>
                     <option value="transfer">Transfer</option>
                   </select>
                   <select className="input" value={editForm.target_currency}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, target_currency: e.target.value }))} style={{ flex: 1 }}>
-                    <option value="CNGN">CNGN</option>
-                    <option value="USDB">USDB</option>
+                    onChange={(e) => setEditForm(prev => ({ ...prev, target_currency: e.target.value }))} style={{ flex: 1, fontSize: '13px', padding: '10px' }}>
+                    <option value="CNGN">NGN</option>
+                    <option value="USDB">USD</option>
                   </select>
                 </div>
                 <input className="input" type="number" placeholder="Monthly target (optional)"
                   value={editForm.target_amount}
                   onChange={(e) => setEditForm(prev => ({ ...prev, target_amount: e.target.value }))}
-                  style={{ marginBottom: '10px' }} />
+                  style={{ marginBottom: '10px', fontSize: '13px', padding: '10px' }} />
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleEditChannel} disabled={channelLoading === ch.id}>
+                  <button className="btn btn-primary" style={{ flex: 1, fontSize: '12px' }} onClick={handleEditChannel} disabled={channelLoading === ch.id}>
                     {channelLoading === ch.id ? <span className="spinner" /> : 'Save'}
                   </button>
-                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEditingChannel(null)}>Cancel</button>
+                  <button className="btn btn-secondary" style={{ flex: 1, fontSize: '12px' }} onClick={() => setEditingChannel(null)}>Cancel</button>
                 </div>
               </div>
             ) : confirmDelete === ch.id ? (
               <div style={{ textAlign: 'center' }}>
                 <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '10px' }}>Delete "{ch.label}"?</p>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button className="btn btn-success" style={{ flex: 1 }} onClick={() => handleDeleteChannel(ch.id)} disabled={channelLoading === ch.id}>
+                  <button className="btn btn-success" style={{ flex: 1, fontSize: '12px' }} onClick={() => handleDeleteChannel(ch.id)} disabled={channelLoading === ch.id}>
                     {channelLoading === ch.id ? <span className="spinner" /> : 'Confirm'}
                   </button>
-                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setConfirmDelete(null)}>Cancel</button>
+                  <button className="btn btn-secondary" style={{ flex: 1, fontSize: '12px' }} onClick={() => setConfirmDelete(null)}>Cancel</button>
                 </div>
               </div>
             ) : (
@@ -414,7 +490,7 @@ export default function SplitPage() {
                     <div className="channel-label">{ch.label}</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span className="stat-label">{ch.target_currency}</span>
+                    <span className="stat-label">{getDisplayCurrency(ch.target_currency)}</span>
                     <button className="channel-action-btn" onClick={() => startEditChannel(ch)} title="Edit">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     </button>
@@ -425,7 +501,7 @@ export default function SplitPage() {
                 </div>
                 {ch.target_amount !== null && (
                   <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                    Target: {ch.target_currency === 'USDB' ? '$' : '\u20A6'}{ch.target_amount.toLocaleString()} / month
+                    Target: {getCurrencySymbol(ch.target_currency)}{ch.target_amount.toLocaleString()} / month
                   </div>
                 )}
                 <input
@@ -435,7 +511,7 @@ export default function SplitPage() {
                   min="0"
                   value={manualAmounts[ch.id] || ''}
                   onChange={(e) => setManualAmounts((prev) => ({ ...prev, [ch.id]: e.target.value }))}
-                  style={{ marginTop: '12px', width: '100%' }}
+                  style={{ marginTop: '12px', width: '100%', fontSize: '13px', padding: '10px' }}
                 />
               </>
             )}
@@ -452,14 +528,14 @@ export default function SplitPage() {
             placeholder="Channel name (e.g. Transport)"
             value={newChannel.label}
             onChange={(e) => setNewChannel(prev => ({ ...prev, label: e.target.value }))}
-            style={{ marginBottom: '10px' }}
+            style={{ marginBottom: '10px', fontSize: '13px', padding: '10px' }}
           />
           <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
             <select
               className="input"
               value={newChannel.type}
               onChange={(e) => setNewChannel(prev => ({ ...prev, type: e.target.value }))}
-              style={{ flex: 1 }}
+              style={{ flex: 1, fontSize: '13px', padding: '10px' }}
             >
               <option value="spend">Spend</option>
               <option value="save">Save</option>
@@ -469,10 +545,10 @@ export default function SplitPage() {
               className="input"
               value={newChannel.target_currency}
               onChange={(e) => setNewChannel(prev => ({ ...prev, target_currency: e.target.value }))}
-              style={{ flex: 1 }}
+              style={{ flex: 1, fontSize: '13px', padding: '10px' }}
             >
-              <option value="CNGN">CNGN</option>
-              <option value="USDB">USDB</option>
+              <option value="CNGN">NGN</option>
+              <option value="USDB">USD</option>
             </select>
           </div>
           <input
@@ -481,13 +557,13 @@ export default function SplitPage() {
             placeholder="Monthly target (optional)"
             value={newChannel.target_amount}
             onChange={(e) => setNewChannel(prev => ({ ...prev, target_amount: e.target.value }))}
-            style={{ marginBottom: '12px' }}
+            style={{ marginBottom: '12px', fontSize: '13px', padding: '10px' }}
           />
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleAddChannel}>
+            <button className="btn btn-primary" style={{ flex: 1, fontSize: '12px' }} onClick={handleAddChannel}>
               Add
             </button>
-            <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowAddChannel(false)}>
+            <button className="btn btn-secondary" style={{ flex: 1, fontSize: '12px' }} onClick={() => setShowAddChannel(false)}>
               Cancel
             </button>
           </div>
@@ -510,13 +586,13 @@ export default function SplitPage() {
 
   const renderSplitResults = () => (
     <>
-      {/* Summary bar */}
+      {/* Balance + summary */}
       <div className="glass-card" style={{ marginBottom: '20px', padding: '16px 20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <div>
             <div className="stat-label">Total Inflow</div>
             <div style={{ fontFamily: 'var(--font-heading)', fontSize: '20px', fontWeight: 700, color: '#fbbf24' }}>
-              ${amount} {currency}
+              {getCurrencySymbol(currency)}{amount} {getDisplayCurrency(currency)}
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -526,17 +602,40 @@ export default function SplitPage() {
             </div>
           </div>
         </div>
+
+        {balance && balance.length > 0 && (
+          <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '12px' }}>
+            <div className="stat-label" style={{ marginBottom: '4px' }}>Live Wallet Balance</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {balance.map(b => (
+                <div key={b.currency} style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', fontWeight: 600 }}>
+                  {getCurrencySymbol(b.currency)}{parseFloat(b.amount).toLocaleString()}{' '}
+                  <span style={{ fontSize: '12px', opacity: 0.7 }}>{getDisplayCurrency(b.currency)}</span>
+                </div>
+              ))}
+              {totalSigned > 0 && (
+                <div style={{ fontSize: '12px', color: '#f87171' }}>
+                  -{getCurrencySymbol(currency)}{totalSigned.toFixed(2)}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="channels-grid">
-        {splits.map((split, i) => renderShortfallCard(split, i))}
+        {splits.map((split, i) => (
+          <div key={i}>
+            {renderShortfallCard(split, i)}
+          </div>
+        ))}
       </div>
 
       {allCompleted && (
         <button
           className="btn btn-primary"
           style={{ width: '100%', marginTop: '24px' }}
-          onClick={() => navigate(`/app/digest/${inflowEventId}`)}
+          onClick={() => navigate(`/app/digest/${inflowEventId}`, { state: { amount, currency } })}
         >
           View Digest
         </button>
@@ -555,8 +654,8 @@ export default function SplitPage() {
 
       <div className="amount-display">
         <div className="amount-label">Priority-aware split</div>
-        <div className="amount-value">${amount}</div>
-        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>{currency}</div>
+        <div className="amount-value">{getCurrencySymbol(currency)}{amount}</div>
+        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>{getDisplayCurrency(currency)}</div>
       </div>
 
       {error && (
@@ -567,7 +666,6 @@ export default function SplitPage() {
 
       {splits.length === 0 && mode === 'ai' && (
         <>
-          {/* Show channel targets before generating split */}
           {channels.length > 0 && (
             <div className="glass-card" style={{ marginBottom: '20px', padding: '20px' }}>
               <div className="stat-label" style={{ marginBottom: '12px' }}>Channel priorities (funded in order)</div>
@@ -579,39 +677,39 @@ export default function SplitPage() {
                     <div style={{ padding: '8px 0' }}>
                       <input className="input" type="text" value={editForm.label}
                         onChange={(e) => setEditForm(prev => ({ ...prev, label: e.target.value }))}
-                        style={{ marginBottom: '8px' }} placeholder="Channel name" />
+                        style={{ marginBottom: '8px', fontSize: '13px', padding: '10px' }} placeholder="Channel name" />
                       <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                         <select className="input" value={editForm.type}
-                          onChange={(e) => setEditForm(prev => ({ ...prev, type: e.target.value }))} style={{ flex: 1 }}>
+                          onChange={(e) => setEditForm(prev => ({ ...prev, type: e.target.value }))} style={{ flex: 1, fontSize: '13px', padding: '10px' }}>
                           <option value="spend">Spend</option>
                           <option value="save">Save</option>
                           <option value="transfer">Transfer</option>
                         </select>
                         <select className="input" value={editForm.target_currency}
-                          onChange={(e) => setEditForm(prev => ({ ...prev, target_currency: e.target.value }))} style={{ flex: 1 }}>
-                          <option value="CNGN">CNGN</option>
-                          <option value="USDB">USDB</option>
+                          onChange={(e) => setEditForm(prev => ({ ...prev, target_currency: e.target.value }))} style={{ flex: 1, fontSize: '13px', padding: '10px' }}>
+                          <option value="CNGN">NGN</option>
+                          <option value="USDB">USD</option>
                         </select>
                       </div>
                       <input className="input" type="number" placeholder="Monthly target (optional)"
                         value={editForm.target_amount}
                         onChange={(e) => setEditForm(prev => ({ ...prev, target_amount: e.target.value }))}
-                        style={{ marginBottom: '8px' }} />
+                        style={{ marginBottom: '8px', fontSize: '13px', padding: '10px' }} />
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleEditChannel} disabled={channelLoading === ch.id}>
+                        <button className="btn btn-primary" style={{ flex: 1, fontSize: '12px' }} onClick={handleEditChannel} disabled={channelLoading === ch.id}>
                           {channelLoading === ch.id ? <span className="spinner" /> : 'Save'}
                         </button>
-                        <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEditingChannel(null)}>Cancel</button>
+                        <button className="btn btn-secondary" style={{ flex: 1, fontSize: '12px' }} onClick={() => setEditingChannel(null)}>Cancel</button>
                       </div>
                     </div>
                   ) : confirmDelete === ch.id ? (
                     <div style={{ padding: '8px 0', textAlign: 'center' }}>
                       <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '10px' }}>Delete "{ch.label}"?</p>
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        <button className="btn btn-success" style={{ flex: 1 }} onClick={() => handleDeleteChannel(ch.id)} disabled={channelLoading === ch.id}>
+                        <button className="btn btn-success" style={{ flex: 1, fontSize: '12px' }} onClick={() => handleDeleteChannel(ch.id)} disabled={channelLoading === ch.id}>
                           {channelLoading === ch.id ? <span className="spinner" /> : 'Confirm'}
                         </button>
-                        <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setConfirmDelete(null)}>Cancel</button>
+                        <button className="btn btn-secondary" style={{ flex: 1, fontSize: '12px' }} onClick={() => setConfirmDelete(null)}>Cancel</button>
                       </div>
                     </div>
                   ) : (
@@ -628,7 +726,7 @@ export default function SplitPage() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                          {ch.target_amount !== null ? `${ch.target_currency === 'USDB' ? '$' : '\u20A6'}${ch.target_amount.toLocaleString()}` : 'Remainder'}
+                          {ch.target_amount !== null ? `${getCurrencySymbol(ch.target_currency)}${ch.target_amount.toLocaleString()}` : 'Remainder'}
                         </span>
                         <button className="channel-action-btn" onClick={() => startEditChannel(ch)} title="Edit">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -653,14 +751,14 @@ export default function SplitPage() {
                 placeholder="Channel name (e.g. Transport)"
                 value={newChannel.label}
                 onChange={(e) => setNewChannel(prev => ({ ...prev, label: e.target.value }))}
-                style={{ marginBottom: '10px' }}
+                style={{ marginBottom: '10px', fontSize: '13px', padding: '10px' }}
               />
               <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
                 <select
                   className="input"
                   value={newChannel.type}
                   onChange={(e) => setNewChannel(prev => ({ ...prev, type: e.target.value }))}
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, fontSize: '13px', padding: '10px' }}
                 >
                   <option value="spend">Spend</option>
                   <option value="save">Save</option>
@@ -670,10 +768,10 @@ export default function SplitPage() {
                   className="input"
                   value={newChannel.target_currency}
                   onChange={(e) => setNewChannel(prev => ({ ...prev, target_currency: e.target.value }))}
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, fontSize: '13px', padding: '10px' }}
                 >
-                  <option value="CNGN">CNGN</option>
-                  <option value="USDB">USDB</option>
+                  <option value="CNGN">NGN</option>
+                  <option value="USDB">USD</option>
                 </select>
               </div>
               <input
@@ -682,13 +780,13 @@ export default function SplitPage() {
                 placeholder="Monthly target (optional)"
                 value={newChannel.target_amount}
                 onChange={(e) => setNewChannel(prev => ({ ...prev, target_amount: e.target.value }))}
-                style={{ marginBottom: '12px' }}
+                style={{ marginBottom: '12px', fontSize: '13px', padding: '10px' }}
               />
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleAddChannel}>
+                <button className="btn btn-primary" style={{ flex: 1, fontSize: '12px' }} onClick={handleAddChannel}>
                   Add
                 </button>
-                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowAddChannel(false)}>
+                <button className="btn btn-secondary" style={{ flex: 1, fontSize: '12px' }} onClick={() => setShowAddChannel(false)}>
                   Cancel
                 </button>
               </div>

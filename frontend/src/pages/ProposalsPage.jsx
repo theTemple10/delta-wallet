@@ -135,8 +135,8 @@ export default function ProposalsPage() {
                         </select>
                         <select className="input" value={editForm.target_currency}
                           onChange={(e) => setEditForm(prev => ({ ...prev, target_currency: e.target.value }))} style={{ flex: 1 }}>
-                          <option value="CNGN">CNGN</option>
-                          <option value="USDB">USDB</option>
+                          <option value="CNGN">NGN</option>
+                          <option value="USDB">USD</option>
                         </select>
                       </div>
                       <input className="input" type="number" placeholder="Monthly target (optional)"
@@ -233,7 +233,7 @@ export default function ProposalsPage() {
                       <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                           <span className="stat-label">Currency</span>
-                          <div className="stat-value" style={{ fontSize: '16px' }}>{ch.target_currency}</div>
+                          <div className="stat-value" style={{ fontSize: '16px' }}>{ch.target_currency === 'USDB' ? 'USD' : ch.target_currency === 'CNGN' ? 'NGN' : ch.target_currency}</div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <span className="stat-label">Period</span>

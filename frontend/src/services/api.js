@@ -8,10 +8,13 @@ const api = axios.create({
 });
 
 export const seedUsers = () => api.post('/users/seed');
+export const resetUsers = () => api.post('/users/reset');
 export const getChannels = (userId) => api.get(`/channels/${userId}`);
 export const createChannel = (data) => api.post('/channels', data);
 export const updateChannel = (channelId, data) => api.put(`/channels/${channelId}`, data);
 export const deleteChannel = (channelId) => api.delete(`/channels/${channelId}`);
+export const updateAccountDetails = (channelId, data) => api.put(`/channels/${channelId}/account`, data);
+export const simulatePayout = (channelId) => api.post(`/channels/${channelId}/payout`);
 export const simulateInflow = (userId, amount, currency = 'USDB') =>
   api.post('/inflow', { user_id: userId, amount, currency });
 export const proposeSplit = (inflowEventId, mode, splits = null) =>

@@ -26,9 +26,21 @@ app.include_router(balance.router, prefix="/wallet", tags=["balance"])
 @app.on_event("startup")
 async def startup():
     async with engine.begin() as conn:
-        # create_all is safe — only creates tables that don't exist.
-        # Schema is already correct; no need to drop and recreate.
         await conn.run_sync(Base.metadata.create_all)
+        # Safe migration: add columns that may not exist yet
+        for col, typ in [
+            ("bank_name", "VARCHAR"),
+            ("account_number", "VARCHAR"),
+            ("account_name", "VARCHAR"),
+        ]:
+            try:
+                await conn.execute(
+                    __import__('sqlalchemy').text(
+                        f"ALTER TABLE channels ADD COLUMN IF NOT EXISTS {col} {typ}"
+                    )
+                )
+            except Exception:
+                pass
 
 
 @app.get("/health")

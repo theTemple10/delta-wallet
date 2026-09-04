@@ -71,7 +71,23 @@ async def seed_demo_users(db: AsyncSession = Depends(get_db)):
             "message": "Demo users already seeded",
             "users": [{"id": str(u.id), "name": f"{u.first_name} {u.last_name}"} for u in all_users]
         }
+    return await _do_seed(db)
 
+
+@router.post("/reset")
+async def reset_demo_users(db: AsyncSession = Depends(get_db)):
+    from app.models.models import Channel, InflowEvent, Proposal, Card, Digest
+    await db.execute(Proposal.__table__.delete())
+    await db.execute(Digest.__table__.delete())
+    await db.execute(Card.__table__.delete())
+    await db.execute(Channel.__table__.delete())
+    await db.execute(InflowEvent.__table__.delete())
+    await db.execute(User.__table__.delete())
+    await db.commit()
+    return await _do_seed(db)
+
+
+async def _do_seed(db: AsyncSession):
     created_users = []
     for user_data in DEMO_USERS:
         try:

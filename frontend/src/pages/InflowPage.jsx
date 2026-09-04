@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { seedUsers, simulateInflow, getBalance, getChannels } from '../services/api';
+import { seedUsers, resetUsers, simulateInflow, getBalance, getChannels } from '../services/api';
 import { useToast } from '../components/Toast';
+
+const CURRENCY_DISPLAY = { USDB: 'USD', CNGN: 'NGN' };
 
 export default function InflowPage() {
   const navigate = useNavigate();
@@ -30,13 +32,11 @@ export default function InflowPage() {
   useEffect(() => {
     const stored = localStorage.getItem('delta_user_id');
     if (stored) {
-      // Verify user still exists by fetching channels
       getChannels(stored).then(() => {
         setUserId(stored);
         setSeeded(true);
         loadBalance(stored);
       }).catch(() => {
-        // User no longer exists (DB was wiped); clear stale ID
         localStorage.removeItem('delta_user_id');
       });
     }
@@ -67,13 +67,29 @@ export default function InflowPage() {
     setLoading(false);
   };
 
+  const handleReset = async () => {
+    setLoading(true);
+    try {
+      await resetUsers();
+      localStorage.removeItem('delta_user_id');
+      setSeeded(false);
+      setUserId(null);
+      setBalance(null);
+      toast.success('Demo reset. Seed new users to continue.');
+    } catch (err) {
+      const msg = err.response?.data?.detail || 'Reset failed';
+      toast.error(msg);
+    }
+    setLoading(false);
+  };
+
   const handleInflow = async () => {
     if (!userId || !amount) return;
     setLoading(true);
     setError(null);
     try {
       const res = await simulateInflow(userId, parseFloat(amount), currency);
-      toast.success(`Inflow of $${amount} ${currency} simulated`);
+      toast.success(`Inflow of ${getCurrencySymbol(currency)}${amount} simulated`);
       navigate(`/app/split/${res.data.inflow_event_id}`, { state: { mode, amount, currency } });
     } catch (err) {
       console.error('Inflow failed:', err);
@@ -85,6 +101,7 @@ export default function InflowPage() {
   };
 
   const getCurrencySymbol = (c) => c === 'USDB' ? '$' : '\u20A6';
+  const getDisplayCurrency = (c) => CURRENCY_DISPLAY[c] || c;
 
   return (
     <div className="slide-up">
@@ -123,7 +140,7 @@ export default function InflowPage() {
                   {balance.map(b => (
                     <div key={b.currency} style={{ marginBottom: '4px' }}>
                       {getCurrencySymbol(b.currency)}{parseFloat(b.amount).toLocaleString()}{' '}
-                      <span style={{ fontSize: '14px', opacity: 0.7 }}>{b.currency}</span>
+                      <span style={{ fontSize: '14px', opacity: 0.7 }}>{getDisplayCurrency(b.currency)}</span>
                     </div>
                   ))}
                 </div>
@@ -134,7 +151,7 @@ export default function InflowPage() {
           <div className="amount-display">
             <div className="amount-label">Incoming payment</div>
             <div className="amount-value">{getCurrencySymbol(currency)}{amount || '0'}</div>
-            <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>{currency}</div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>{getDisplayCurrency(currency)}</div>
           </div>
 
           {error && (
@@ -157,14 +174,14 @@ export default function InflowPage() {
           <div style={{ marginBottom: '24px' }}>
             <label className="stat-label">Currency</label>
             <div style={{ display: 'flex', gap: '12px' }}>
-              {['USDB', 'CNGN'].map(c => (
+              {[['USDB', 'USD'], ['CNGN', 'NGN']].map(([code, label]) => (
                 <button
-                  key={c}
-                  className={`btn ${currency === c ? 'btn-primary' : 'btn-secondary'}`}
-                  onClick={() => setCurrency(c)}
+                  key={code}
+                  className={`btn ${currency === code ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setCurrency(code)}
                   style={{ flex: 1 }}
                 >
-                  {c}
+                  {label}
                 </button>
               ))}
             </div>
@@ -192,9 +209,10 @@ export default function InflowPage() {
           <button
             className="btn btn-secondary"
             style={{ width: '100%', marginTop: '16px', fontSize: '12px', opacity: 0.6 }}
-            onClick={() => { localStorage.removeItem('delta_user_id'); window.location.reload(); }}
+            onClick={handleReset}
+            disabled={loading}
           >
-            Reset Demo
+            {loading ? <span className="spinner" /> : 'Reset Demo'}
           </button>
         </>
       )}
