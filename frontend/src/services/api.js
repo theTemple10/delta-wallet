@@ -15,7 +15,7 @@ export const simulateInflow = (userId, amount, currency = 'USDB') =>
 export const proposeSplit = (inflowEventId, mode, splits = null) =>
   api.post(`/inflow/${inflowEventId}/propose-split`, { mode, splits });
 export const createProposal = (channelId, data) =>
-  api.post(`/channels/${channelId}/proposal`, data);
+  api.post(`/proposals/channels/${channelId}/proposal`, data);
 export const approveProposal = (proposalId) =>
   api.post(`/proposals/${proposalId}/approve`);
 export const getSignPayload = (proposalId) =>
