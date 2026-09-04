@@ -1,6 +1,7 @@
 import uuid
-from datetime import datetime
-from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Text, Enum as SAEnum
+from datetime import datetime, date
+from decimal import Decimal
+from sqlalchemy import Column, String, Float, DateTime, Date, ForeignKey, Text, Integer, Numeric, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.db.database import Base
@@ -21,6 +22,12 @@ class ChannelType(str, enum.Enum):
     SPEND = "spend"
     SAVE = "save"
     TRANSFER = "transfer"
+
+
+class PeriodType(str, enum.Enum):
+    MONTHLY = "monthly"
+    WEEKLY = "weekly"
+    ONE_OFF = "one_off"
 
 
 class ProposalType(str, enum.Enum):
@@ -69,6 +76,13 @@ class Channel(Base):
     target_currency = Column(String, nullable=False)
     recipient_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Priority-aware funding fields
+    target_amount = Column(Numeric(12, 2), nullable=True)
+    period = Column(SAEnum(PeriodType), nullable=False, default=PeriodType.MONTHLY)
+    priority_rank = Column(Integer, nullable=False, default=100)
+    funded_amount = Column(Numeric(12, 2), nullable=False, default=Decimal("0"))
+    period_start = Column(Date, nullable=True, default=date.today)
 
     user = relationship("User", back_populates="channels", foreign_keys=[user_id])
     proposals = relationship("Proposal", back_populates="channel")

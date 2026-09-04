@@ -92,6 +92,12 @@ class BMONIClient:
         if "/bvn-lookup" in path or "/nin-lookup" in path:
             return {"data": {"match": True, "name": "Bunch Dillon"}}
 
+        if "/account/balances" in path and method == "GET":
+            return {"data": {"balances": [
+                {"currency": "USDB", "amount": "100.00"},
+                {"currency": "CNGN", "amount": "0.00"}
+            ]}}
+
         return {"data": {}}
 
     async def create_user(self, first_name: str, last_name: str, email: str, phone: str, bvn: str) -> Dict:
@@ -123,6 +129,9 @@ class BMONIClient:
 
     async def activate_kyc(self, user_id: str, personal_info: Dict) -> Dict:
         return await self._request("POST", f"/v1/users/{user_id}/kyc/activate", {"personalInfo": personal_info})
+
+    async def get_balance(self, user_id: str, wallet_id: str) -> Dict:
+        return await self._request("GET", f"/v1/users/{user_id}/smart-wallets/{wallet_id}/account/balances")
 
 
 bmoni_client = BMONIClient()

@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { ToastProvider } from './components/Toast';
 import LandingPage from './pages/LandingPage';
 import InflowPage from './pages/InflowPage';
 import SplitPage from './pages/SplitPage';
@@ -87,54 +88,56 @@ function InstallPrompt() {
 
 function App() {
   return (
-    <Router>
-      <OfflineBanner />
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/app" element={
-          <div className="container">
-            <div className="header">
-              <div className="logo">Delta</div>
+    <ToastProvider>
+      <Router>
+        <OfflineBanner />
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/app" element={
+            <div className="container">
+              <div className="header">
+                <div className="logo">Delta</div>
+              </div>
+              <InflowPage />
             </div>
-            <InflowPage />
-          </div>
-        } />
-        <Route path="/app/split/:inflowEventId" element={
-          <div className="container">
-            <div className="header">
-              <div className="logo">Delta</div>
+          } />
+          <Route path="/app/split/:inflowEventId" element={
+            <div className="container">
+              <div className="header">
+                <div className="logo">Delta</div>
+              </div>
+              <SplitPage />
             </div>
-            <SplitPage />
-          </div>
-        } />
-        <Route path="/app/proposals" element={
-          <div className="container">
-            <div className="header">
-              <div className="logo">Delta</div>
+          } />
+          <Route path="/app/proposals" element={
+            <div className="container">
+              <div className="header">
+                <div className="logo">Delta</div>
+              </div>
+              <ProposalsPage />
             </div>
-            <ProposalsPage />
-          </div>
-        } />
-        <Route path="/app/digest/:inflowEventId" element={
-          <div className="container">
-            <div className="header">
-              <div className="logo">Delta</div>
+          } />
+          <Route path="/app/digest/:inflowEventId" element={
+            <div className="container">
+              <div className="header">
+                <div className="logo">Delta</div>
+              </div>
+              <DigestPage />
             </div>
-            <DigestPage />
-          </div>
-        } />
-        <Route path="/app/cards" element={
-          <div className="container">
-            <div className="header">
-              <div className="logo">Delta</div>
+          } />
+          <Route path="/app/cards" element={
+            <div className="container">
+              <div className="header">
+                <div className="logo">Delta</div>
+              </div>
+              <CardsPage />
             </div>
-            <CardsPage />
-          </div>
-        } />
-      </Routes>
-      <Navigation />
-      <InstallPrompt />
-    </Router>
+          } />
+        </Routes>
+        <Navigation />
+        <InstallPrompt />
+      </Router>
+    </ToastProvider>
   );
 }
 

@@ -29,5 +29,7 @@ export const issueCard = (userId, data) =>
   api.post('/cards', { user_id: userId, ...data });
 export const setCardLimit = (cardId, dailyLimit, singleTxnLimit) =>
   api.put(`/cards/${cardId}/limit`, { daily_limit: dailyLimit, single_txn_limit: singleTxnLimit });
+export const getBalance = (userId) =>
+  api.get(`/wallet/balance/${userId}`);
 
 export default api;

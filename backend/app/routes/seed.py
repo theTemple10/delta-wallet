@@ -1,8 +1,9 @@
+from decimal import Decimal
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.database import get_db
-from app.models.models import User, Channel, UserRole, DemoPersona, ChannelType
+from app.models.models import User, Channel, UserRole, DemoPersona, ChannelType, PeriodType
 from app.services.bmoni_client import bmoni_client
 
 router = APIRouter()
@@ -22,10 +23,41 @@ DEMO_USERS = [
     }
 ]
 
+# Priority-ranked: lower rank = funded first
+# Obligations (rent, family) get lowest numbers; discretionary gets highest
 DEMO_CHANNELS = [
-    {"label": "NGN Spend", "type": ChannelType.SPEND, "target_currency": "CNGN"},
-    {"label": "USD Savings", "type": ChannelType.SAVE, "target_currency": "USDB"},
-    {"label": "Family — Samson", "type": ChannelType.TRANSFER, "target_currency": "CNGN"}
+    {
+        "label": "Family \u2014 Samson",
+        "type": ChannelType.TRANSFER,
+        "target_currency": "CNGN",
+        "target_amount": Decimal("50000"),
+        "period": PeriodType.MONTHLY,
+        "priority_rank": 1,
+    },
+    {
+        "label": "Rent",
+        "type": ChannelType.SPEND,
+        "target_currency": "CNGN",
+        "target_amount": Decimal("80000"),
+        "period": PeriodType.MONTHLY,
+        "priority_rank": 2,
+    },
+    {
+        "label": "USD Savings",
+        "type": ChannelType.SAVE,
+        "target_currency": "USDB",
+        "target_amount": Decimal("100"),
+        "period": PeriodType.MONTHLY,
+        "priority_rank": 3,
+    },
+    {
+        "label": "Discretionary",
+        "type": ChannelType.SPEND,
+        "target_currency": "CNGN",
+        "target_amount": None,  # take remainder
+        "period": PeriodType.MONTHLY,
+        "priority_rank": 4,
+    },
 ]
 
 
@@ -73,6 +105,10 @@ async def seed_demo_users(db: AsyncSession = Depends(get_db)):
             label=ch_data["label"],
             type=ch_data["type"],
             target_currency=ch_data["target_currency"],
+            target_amount=ch_data["target_amount"],
+            period=ch_data["period"],
+            priority_rank=ch_data["priority_rank"],
+            funded_amount=Decimal("0"),
             recipient_user_id=samson.id if ch_data["type"] == ChannelType.TRANSFER else None
         )
         db.add(channel)

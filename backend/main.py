@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db.database import engine, Base
-from app.routes import seed, inflow, channels, proposals, cards, digest, split
+from app.routes import seed, inflow, channels, proposals, cards, digest, split, balance
 
 app = FastAPI(title="Delta Wallet API", version="0.1.0")
 
@@ -20,11 +20,15 @@ app.include_router(channels.router, prefix="/channels", tags=["channels"])
 app.include_router(proposals.router, prefix="/proposals", tags=["proposals"])
 app.include_router(cards.router, prefix="/cards", tags=["cards"])
 app.include_router(digest.router, prefix="/digest", tags=["digest"])
+app.include_router(balance.router, prefix="/wallet", tags=["balance"])
 
 
 @app.on_event("startup")
 async def startup():
     async with engine.begin() as conn:
+        # Drop and recreate all tables to ensure schema is up to date.
+        # Safe for demo/hackathon — no production data to preserve.
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
 
