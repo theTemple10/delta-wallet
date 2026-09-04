@@ -26,9 +26,8 @@ app.include_router(balance.router, prefix="/wallet", tags=["balance"])
 @app.on_event("startup")
 async def startup():
     async with engine.begin() as conn:
-        # Drop and recreate all tables to ensure schema is up to date.
-        # Safe for demo/hackathon — no production data to preserve.
-        await conn.run_sync(Base.metadata.drop_all)
+        # create_all is safe — only creates tables that don't exist.
+        # Schema is already correct; no need to drop and recreate.
         await conn.run_sync(Base.metadata.create_all)
 
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { seedUsers, simulateInflow, getBalance } from '../services/api';
+import { seedUsers, simulateInflow, getBalance, getChannels } from '../services/api';
 import { useToast } from '../components/Toast';
 
 export default function InflowPage() {
@@ -30,9 +30,15 @@ export default function InflowPage() {
   useEffect(() => {
     const stored = localStorage.getItem('delta_user_id');
     if (stored) {
-      setUserId(stored);
-      setSeeded(true);
-      loadBalance(stored);
+      // Verify user still exists by fetching channels
+      getChannels(stored).then(() => {
+        setUserId(stored);
+        setSeeded(true);
+        loadBalance(stored);
+      }).catch(() => {
+        // User no longer exists (DB was wiped); clear stale ID
+        localStorage.removeItem('delta_user_id');
+      });
     }
   }, [loadBalance]);
 
