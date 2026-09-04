@@ -22,8 +22,8 @@ class BMONIClient:
 
     async def _live_request(self, method: str, path: str, data: Optional[Dict] = None) -> Dict[str, Any]:
         async with httpx.AsyncClient() as client:
-            # headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-            headers = {"x-api-key": self.api_key, "Content-Type": "application/json"}
+            headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+            # headers = {"x-api-key": self.api_key, "Content-Type": "application/json"}
             url = f"{self.base_url}{path}"
             response = await client.request(method, url, json=data, headers=headers)
             response.raise_for_status()
