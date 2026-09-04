@@ -188,6 +188,14 @@ export default function InflowPage() {
           <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleInflow} disabled={loading || !amount}>
             {loading ? <span className="spinner" /> : 'Simulate Inflow'}
           </button>
+
+          <button
+            className="btn btn-secondary"
+            style={{ width: '100%', marginTop: '16px', fontSize: '12px', opacity: 0.6 }}
+            onClick={() => { localStorage.removeItem('delta_user_id'); window.location.reload(); }}
+          >
+            Reset Demo
+          </button>
         </>
       )}
     </div>
